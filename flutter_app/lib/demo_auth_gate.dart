@@ -1,93 +1,58 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-const _demoBg = Color(0xFF05050A);
-const _demoPanel = Color(0xFF100D18);
-const _demoPurple = Color(0xFF9B35FF);
-const _demoLilac = Color(0xFFC28AFF);
-const _demoText = Color(0xFFF2ECFA);
-const _demoMuted = Color(0xFF9A8EAD);
+const _bg = Color(0xFF08060B);
+const _panel = Color(0xFF151019);
+const _pink = Color(0xFFFF4FA3);
+const _rose = Color(0xFFFFB4D4);
+const _text = Color(0xFFF7F1F7);
+const _muted = Color(0xFFAA9EAE);
 
-/// Local-only demo authentication. Account data is lost when the app closes.
+/// Local demo authentication only: credentials are held in memory and lost
+/// when the application closes. This is not production authentication.
 class DemoAuthGate extends StatefulWidget {
   const DemoAuthGate({super.key, required this.appBuilder});
-
   final WidgetBuilder appBuilder;
 
   @override
   State<DemoAuthGate> createState() => _DemoAuthGateState();
 }
 
-class _DemoAuthGateState extends State<DemoAuthGate> {
+class _DemoAuthGateState extends State<DemoAuthGate>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shine;
   String? _username;
   String? _password;
-  String? _email;
   bool _authorized = false;
-  bool _showRegistration = true;
+  bool _registering = true;
 
-  void _message(String text) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-    }
+  @override
+  void initState() {
+    super.initState();
+    _shine = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
   }
 
-  void _registered(String username, String password) {
+  @override
+  void dispose() {
+    _shine.dispose();
+    super.dispose();
+  }
+
+  void _message(String value) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  void _register(String username, String password) {
     if (_username != null) {
-      setState(() => _showRegistration = false);
+      setState(() => _registering = false);
       _message('Демо-аккаунт уже создан. Войдите в него.');
       return;
     }
     setState(() {
       _username = username.trim();
       _password = password;
-      _showRegistration = false;
-    });
-    unawaited(_askForEmail());
-  }
-
-  Future<void> _askForEmail() async {
-    final controller = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    final email = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: _demoPanel,
-        title: const Text('Привязать почту?', style: TextStyle(color: _demoText)),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: controller,
-            keyboardType: TextInputType.emailAddress,
-            style: const TextStyle(color: _demoText),
-            decoration: const InputDecoration(labelText: 'Электронная почта (необязательно)'),
-            validator: (value) {
-              final text = value?.trim() ?? '';
-              return text.isEmpty || _isEmail(text) ? null : 'Введите корректный адрес';
-            },
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, ''), child: const Text('Пропустить')),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(dialogContext, controller.text.trim());
-              }
-            },
-            child: const Text('Продолжить'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (!mounted) return;
-    setState(() {
-      _email = email?.isNotEmpty == true ? email : null;
-      _authorized = false;
-      _showRegistration = false;
+      _registering = false;
     });
     _message('Аккаунт создан. Теперь войдите.');
   }
@@ -102,79 +67,70 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
     setState(() => _authorized = true);
   }
 
-  Future<void> _showRecovery() async {
-    final controller = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    final email = await showDialog<String>(
+  Future<void> _recover() async {
+    if (_username == null) {
+      _message('Сначала создайте демо-аккаунт.');
+      return;
+    }
+    final userController = TextEditingController();
+    final userKey = GlobalKey<FormState>();
+    final enteredUser = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: _demoPanel,
-        title: const Text('Восстановление аккаунта', style: TextStyle(color: _demoText)),
+        backgroundColor: _panel,
+        title: const Text('Восстановление пароля', style: TextStyle(color: _text)),
         content: Form(
-          key: formKey,
+          key: userKey,
           child: TextFormField(
-            controller: controller,
-            keyboardType: TextInputType.emailAddress,
-            style: const TextStyle(color: _demoText),
-            decoration: const InputDecoration(labelText: 'Привязанная почта'),
-            validator: (value) => _isEmail(value?.trim() ?? '') ? null : 'Введите корректную почту',
+            controller: userController,
+            style: const TextStyle(color: _text),
+            decoration: const InputDecoration(labelText: 'Логин аккаунта'),
+            validator: (value) => (value?.trim().isNotEmpty ?? false) ? null : 'Введите логин',
           ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Отмена')),
           FilledButton(
             onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(dialogContext, controller.text.trim());
-              }
+              if (userKey.currentState!.validate()) Navigator.pop(dialogContext, userController.text.trim());
             },
             child: const Text('Продолжить'),
           ),
         ],
       ),
     );
-    controller.dispose();
-    if (!mounted || email == null) return;
-    if (_email == null || email.toLowerCase() != _email!.toLowerCase()) {
-      _message('Аккаунт с такой привязанной почтой не найден.');
+    userController.dispose();
+    if (!mounted || enteredUser == null) return;
+    if (enteredUser.toLowerCase() != _username!.toLowerCase()) {
+      _message('Демо-аккаунт с таким логином не найден.');
       return;
     }
-    final reset = await _showResetPasswordDialog();
-    if (reset != null && mounted) {
-      setState(() {
-        _password = reset;
-        _authorized = false;
-        _showRegistration = false;
-      });
-      _message('Пароль изменён. Войдите с новым паролем.');
-    }
-  }
 
-  Future<String?> _showResetPasswordDialog() async {
-    final password = TextEditingController();
-    final confirm = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    final result = await showDialog<String>(
+    final passwordController = TextEditingController();
+    final repeatController = TextEditingController();
+    final passwordKey = GlobalKey<FormState>();
+    final newPassword = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: _demoPanel,
-        title: const Text('Новый пароль', style: TextStyle(color: _demoText)),
+        backgroundColor: _panel,
+        title: const Text('Новый пароль', style: TextStyle(color: _text)),
         content: Form(
-          key: formKey,
+          key: passwordKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const Text('Локальное демо-восстановление: письмо не отправляется.', style: TextStyle(color: _muted)),
               TextFormField(
-                controller: password,
+                controller: passwordController,
                 obscureText: true,
                 decoration: const InputDecoration(labelText: 'Новый пароль'),
                 validator: (value) => (value ?? '').length >= 6 ? null : 'Минимум 6 символов',
               ),
               TextFormField(
-                controller: confirm,
+                controller: repeatController,
                 obscureText: true,
                 decoration: const InputDecoration(labelText: 'Повторите пароль'),
-                validator: (value) => value == password.text ? null : 'Пароли не совпадают',
+                validator: (value) => value == passwordController.text ? null : 'Пароли не совпадают',
               ),
             ],
           ),
@@ -183,41 +139,50 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Отмена')),
           FilledButton(
             onPressed: () {
-              if (formKey.currentState!.validate()) Navigator.pop(dialogContext, password.text);
+              if (passwordKey.currentState!.validate()) Navigator.pop(dialogContext, passwordController.text);
             },
             child: const Text('Сохранить'),
           ),
         ],
       ),
     );
-    password.dispose();
-    confirm.dispose();
-    return result;
-  }
-
-  bool _isEmail(String value) {
-    final at = value.indexOf('@');
-    return at > 0 && value.indexOf('.', at) > at + 1 && value.indexOf('.', at) < value.length - 1;
+    passwordController.dispose();
+    repeatController.dispose();
+    if (newPassword != null && mounted) {
+      setState(() {
+        _password = newPassword;
+        _registering = false;
+      });
+      _message('Пароль изменён. Войдите с новым паролем.');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_authorized) return widget.appBuilder(context);
     return Scaffold(
-      backgroundColor: _demoBg,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 360),
-              child: _showRegistration
-                  ? _RegistrationForm(onRegister: _registered)
-                  : _LoginForm(
-                      onLogin: _login,
-                      onForgot: _showRecovery,
-                      onCreateAccount: () => setState(() => _showRegistration = true),
-                    ),
+      backgroundColor: _bg,
+      body: AnimatedBuilder(
+        animation: _shine,
+        builder: (context, _) => Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment(-1 + 2 * _shine.value, -1),
+              end: Alignment(1 - 2 * _shine.value, 1),
+              colors: const [Color(0xFF08060B), Color(0xFF1D101A), Color(0xFF100B13), Color(0xFF08060B)],
+            ),
+          ),
+          child: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  child: _registering
+                      ? _RegistrationForm(shine: _shine, onRegister: _register, onLogin: () => setState(() => _registering = false))
+                      : _LoginForm(shine: _shine, onLogin: _login, onForgot: _recover, onRegister: () => setState(() => _registering = true)),
+                ),
+              ),
             ),
           ),
         ),
@@ -227,15 +192,16 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
 }
 
 class _RegistrationForm extends StatefulWidget {
-  const _RegistrationForm({required this.onRegister});
-  final void Function(String username, String password) onRegister;
-
+  const _RegistrationForm({required this.shine, required this.onRegister, required this.onLogin});
+  final Animation<double> shine;
+  final void Function(String, String) onRegister;
+  final VoidCallback onLogin;
   @override
   State<_RegistrationForm> createState() => _RegistrationFormState();
 }
 
 class _RegistrationFormState extends State<_RegistrationForm> {
-  final _formKey = GlobalKey<FormState>();
+  final _key = GlobalKey<FormState>();
   final _username = TextEditingController();
   final _password = TextEditingController();
   final _repeat = TextEditingController();
@@ -251,251 +217,155 @@ class _RegistrationFormState extends State<_RegistrationForm> {
 
   @override
   Widget build(BuildContext context) => Form(
-        key: _formKey,
+        key: _key,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _SpiderVpnBrand(),
-            const SizedBox(height: 22),
-            const Text('Создать аккаунт', textAlign: TextAlign.center, style: TextStyle(color: _demoText, fontSize: 24, fontWeight: FontWeight.w600)),
+            _Brand(shine: widget.shine),
+            const SizedBox(height: 25),
+            const Text('Создать аккаунт', textAlign: TextAlign.center, style: TextStyle(color: _text, fontSize: 22, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            const Text('Придумайте логин и пароль', textAlign: TextAlign.center, style: TextStyle(color: _demoMuted)),
-            const SizedBox(height: 28),
-            TextFormField(
-              controller: _username,
-              style: const TextStyle(color: _demoText),
-              decoration: const InputDecoration(labelText: 'Логин'),
-              validator: (value) => (value?.trim().length ?? 0) >= 3 ? null : 'Минимум 3 символа',
-            ),
+            const Text('Придумайте логин и пароль', textAlign: TextAlign.center, style: TextStyle(color: _muted)),
+            const SizedBox(height: 26),
+            TextFormField(controller: _username, style: const TextStyle(color: _text), decoration: const InputDecoration(labelText: 'Логин'), validator: (v) => (v?.trim().length ?? 0) >= 3 ? null : 'Минимум 3 символа'),
             const SizedBox(height: 14),
-            TextFormField(
-              controller: _password,
-              obscureText: _obscure,
-              style: const TextStyle(color: _demoText),
-              decoration: InputDecoration(
-                labelText: 'Пароль',
-                suffixIcon: IconButton(
-                  onPressed: () => setState(() => _obscure = !_obscure),
-                  icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                ),
-              ),
-              validator: (value) => (value ?? '').length >= 6 ? null : 'Минимум 6 символов',
-            ),
+            TextFormField(controller: _password, obscureText: _obscure, style: const TextStyle(color: _text), decoration: InputDecoration(labelText: 'Пароль', suffixIcon: IconButton(onPressed: () => setState(() => _obscure = !_obscure), icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off))), validator: (v) => (v ?? '').length >= 6 ? null : 'Минимум 6 символов'),
             const SizedBox(height: 14),
-            TextFormField(
-              controller: _repeat,
-              obscureText: _obscure,
-              style: const TextStyle(color: _demoText),
-              decoration: const InputDecoration(labelText: 'Повторите пароль'),
-              validator: (value) => value == _password.text ? null : 'Пароли не совпадают',
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  widget.onRegister(_username.text.trim(), _password.text);
-                }
-              },
-              child: const Padding(padding: EdgeInsets.symmetric(vertical: 13), child: Text('Зарегистрироваться')),
-            ),
+            TextFormField(controller: _repeat, obscureText: _obscure, style: const TextStyle(color: _text), decoration: const InputDecoration(labelText: 'Повторите пароль'), validator: (v) => v == _password.text ? null : 'Пароли не совпадают'),
+            const SizedBox(height: 22),
+            _GlowButton(shine: widget.shine, label: 'Зарегистрироваться', onPressed: () { if (_key.currentState!.validate()) widget.onRegister(_username.text.trim(), _password.text); }),
+            TextButton(onPressed: widget.onLogin, child: const Text('Уже есть аккаунт? Войти')),
           ],
         ),
       );
 }
 
 class _LoginForm extends StatefulWidget {
-  const _LoginForm({required this.onLogin, required this.onForgot, required this.onCreateAccount});
-  final void Function(String username, String password) onLogin;
+  const _LoginForm({required this.shine, required this.onLogin, required this.onForgot, required this.onRegister});
+  final Animation<double> shine;
+  final void Function(String, String) onLogin;
   final VoidCallback onForgot;
-  final VoidCallback onCreateAccount;
-
+  final VoidCallback onRegister;
   @override
   State<_LoginForm> createState() => _LoginFormState();
 }
 
 class _LoginFormState extends State<_LoginForm> {
-  final _formKey = GlobalKey<FormState>();
+  final _key = GlobalKey<FormState>();
   final _username = TextEditingController();
   final _password = TextEditingController();
-
   @override
-  void dispose() {
-    _username.dispose();
-    _password.dispose();
-    super.dispose();
-  }
+  void dispose() { _username.dispose(); _password.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) => Form(
-        key: _formKey,
+        key: _key,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _SpiderVpnBrand(),
-            const SizedBox(height: 22),
-            const Text('Вход в аккаунт', textAlign: TextAlign.center, style: TextStyle(color: _demoText, fontSize: 24, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 28),
-            TextFormField(
-              controller: _username,
-              style: const TextStyle(color: _demoText),
-              decoration: const InputDecoration(labelText: 'Логин'),
-              validator: (value) => (value?.trim().isNotEmpty ?? false) ? null : 'Введите логин',
-            ),
+            _Brand(shine: widget.shine),
+            const SizedBox(height: 25),
+            const Text('Вход в аккаунт', textAlign: TextAlign.center, style: TextStyle(color: _text, fontSize: 22, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 26),
+            TextFormField(controller: _username, style: const TextStyle(color: _text), decoration: const InputDecoration(labelText: 'Логин'), validator: (v) => (v?.trim().isNotEmpty ?? false) ? null : 'Введите логин'),
             const SizedBox(height: 14),
-            TextFormField(
-              controller: _password,
-              obscureText: true,
-              style: const TextStyle(color: _demoText),
-              decoration: const InputDecoration(labelText: 'Пароль'),
-              validator: (value) => (value?.isNotEmpty ?? false) ? null : 'Введите пароль',
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(onPressed: widget.onForgot, child: const Text('Забыл логин/пароль?', style: TextStyle(color: _demoMuted, fontSize: 12))),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  widget.onLogin(_username.text.trim(), _password.text);
-                }
-              },
-              child: const Padding(padding: EdgeInsets.symmetric(vertical: 13), child: Text('Войти')),
-            ),
-            TextButton(onPressed: widget.onCreateAccount, child: const Text('Создать аккаунт')),
+            TextFormField(controller: _password, obscureText: true, style: const TextStyle(color: _text), decoration: const InputDecoration(labelText: 'Пароль'), validator: (v) => (v?.isNotEmpty ?? false) ? null : 'Введите пароль'),
+            Align(alignment: Alignment.centerRight, child: TextButton(onPressed: widget.onForgot, child: const Text('Забыл логин/пароль?', style: TextStyle(color: _muted, fontSize: 12)))),
+            const SizedBox(height: 10),
+            _GlowButton(shine: widget.shine, label: 'Войти', onPressed: () { if (_key.currentState!.validate()) widget.onLogin(_username.text.trim(), _password.text); }),
+            TextButton(onPressed: widget.onRegister, child: const Text('Создать аккаунт')),
           ],
         ),
       );
 }
 
-/// Animated wordmark using a custom-drawn spider and web, inspired by the
-/// supplied reference image. No external image assets or packages required.
-class _SpiderVpnBrand extends StatefulWidget {
-  const _SpiderVpnBrand();
-
-  @override
-  State<_SpiderVpnBrand> createState() => _SpiderVpnBrandState();
-}
-
-class _SpiderVpnBrandState extends State<_SpiderVpnBrand>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _shine;
-
-  @override
-  void initState() {
-    super.initState();
-    _shine = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
-  }
-
-  @override
-  void dispose() {
-    _shine.dispose();
-    super.dispose();
-  }
-
+class _Brand extends StatelessWidget {
+  const _Brand({required this.shine});
+  final Animation<double> shine;
   @override
   Widget build(BuildContext context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            width: 178,
-            height: 150,
-            child: CustomPaint(painter: _SpiderWebPainter(_shine)),
-          ),
+          SizedBox(width: 190, height: 190, child: CustomPaint(painter: _SpiderPainter(shine))),
           const SizedBox(height: 7),
-          const Text(
-            'spider vpn',
-            style: TextStyle(
-              color: _demoText,
-              fontSize: 15,
-              letterSpacing: 3.2,
-              fontWeight: FontWeight.w300,
+          AnimatedBuilder(
+            animation: shine,
+            builder: (context, _) => ShaderMask(
+              shaderCallback: (bounds) => LinearGradient(
+                begin: Alignment(-1 + 2 * shine.value, 0),
+                end: Alignment(1 - 2 * shine.value, 0),
+                colors: const [_text, Color(0xFFFFB4D4), _text],
+              ).createShader(bounds),
+              child: const Text('SPIDER VPN', style: TextStyle(color: Colors.white, fontFamily: 'serif', fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 4.5)),
             ),
           ),
         ],
       );
 }
 
-class _SpiderWebPainter extends CustomPainter {
-  _SpiderWebPainter(this.animation) : super(repaint: animation);
+class _SpiderPainter extends CustomPainter {
+  _SpiderPainter(this.animation) : super(repaint: animation);
   final Animation<double> animation;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
+    final center = Offset(size.width / 2, size.height / 2);
+    final scale = size.shortestSide / 300;
     final phase = animation.value;
-    final shimmer = LinearGradient(
+    final gradient = LinearGradient(
       begin: Alignment(-1 + 2 * phase, -1),
       end: Alignment(1 - 2 * phase, 1),
-      colors: const [
-        Color(0x66FFFFFF),
-        Color(0xFFE6E8EC),
-        Color(0x553F4650),
-        Color(0xCCFFFFFF),
-      ],
-      stops: const [0, .38, .68, 1],
-    ).createShader(rect);
-    final thread = Paint()
-      ..shader = shimmer
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.15
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    // Fan-shaped web with eight radial strands and curved cross strands.
-    const rays = 8;
-    final top = Offset(size.width * .51, size.height * .04);
-    final webWidth = size.width * .88;
-    final webHeight = size.height * .77;
-    final bottom = Offset(top.dx, top.dy + webHeight);
-    for (var i = 0; i < rays; i++) {
-      final x = size.width * (.07 + .86 * i / (rays - 1));
-      final endY = top.dy + webHeight * (i == 0 || i == rays - 1 ? .72 : 1);
-      canvas.drawLine(top, Offset(x, endY), thread);
-    }
-    for (var row = 1; row <= 5; row++) {
-      final t = row / 6;
-      final y = top.dy + webHeight * t;
-      final half = webWidth * .5 * t;
-      final path = Path()
-        ..moveTo(top.dx - half, y - 2)
-        ..quadraticBezierTo(top.dx, y + webHeight * .11, top.dx + half, y - 2);
-      canvas.drawPath(path, thread);
-    }
-
-    // Spider hangs from the lower-right web strand, like the supplied logo.
-    final spiderCenter = Offset(size.width * .79, size.height * .81);
-    final legPaint = Paint()
-      ..shader = shimmer
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round;
-    final bodyPaint = Paint()
-      ..shader = shimmer
-      ..style = PaintingStyle.fill;
-    canvas.drawLine(
-      Offset(size.width * .93, top.dy + webHeight * .72),
-      Offset(size.width * .93, spiderCenter.dy - 10),
-      thread,
-    );
-    for (var i = 0; i < 4; i++) {
-      final y = spiderCenter.dy + (i - 1.5) * 4;
-      for (final side in [-1.0, 1.0]) {
-        final leg = Path()
-          ..moveTo(spiderCenter.dx + side * 3, y)
-          ..quadraticBezierTo(spiderCenter.dx + side * 11, y - 8, spiderCenter.dx + side * 16, y - 2)
-          ..quadraticBezierTo(spiderCenter.dx + side * 19, y + 3, spiderCenter.dx + side * 16, y + 8);
-        canvas.drawPath(leg, legPaint);
-      }
-    }
-    canvas.drawOval(
-      Rect.fromCenter(center: spiderCenter, width: 12, height: 19),
-      bodyPaint,
-    );
-    canvas.drawCircle(Offset(spiderCenter.dx, spiderCenter.dy - 10), 5, bodyPaint);
+      colors: [const Color(0x884A172E), Color.lerp(_pink, _rose, (math.sin(phase * math.pi * 2) + 1) / 2)!, const Color(0xFFFFE0ED), _pink],
+      stops: const [0, .35, .58, 1],
+    ).createShader(Offset.zero & size);
+    final legsPaint = Paint()..shader = gradient..style = PaintingStyle.stroke..strokeWidth = 9..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round;
+    final bodyPaint = Paint()..shader = gradient;
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.scale(scale);
+    final paths = <Path>[
+      Path()..moveTo(-9,-25)..cubicTo(-42,-53,-54,-83,-60,-111)..cubicTo(-66,-137,-66,-166,-82,-191),
+      Path()..moveTo(9,-25)..cubicTo(42,-53,54,-83,60,-111)..cubicTo(66,-137,66,-166,82,-191),
+      Path()..moveTo(-16,-19)..cubicTo(-56,-39,-92,-44,-120,-72)..cubicTo(-137,-89,-143,-108,-159,-124),
+      Path()..moveTo(16,-19)..cubicTo(56,-39,92,-44,120,-72)..cubicTo(137,-89,143,-108,159,-124),
+      Path()..moveTo(-17,-2)..cubicTo(-60,-2,-100,4,-128,24)..cubicTo(-151,40,-160,61,-178,76),
+      Path()..moveTo(17,-2)..cubicTo(60,-2,100,4,128,24)..cubicTo(151,40,160,61,178,76),
+      Path()..moveTo(-12,17)..cubicTo(-48,39,-78,58,-83,95)..cubicTo(-87,132,-67,164,-52,190),
+      Path()..moveTo(12,17)..cubicTo(48,39,78,58,83,95)..cubicTo(87,132,67,164,52,190),
+    ];
+    for (final path in paths) { canvas.drawPath(path, legsPaint); }
+    canvas.drawOval(const Rect.fromCenter(center: Offset(0, 9), width: 61, height: 83), bodyPaint);
+    canvas.drawOval(const Rect.fromCenter(center: Offset(0, -34), width: 51, height: 48), bodyPaint);
+    final feelers = Path()
+      ..moveTo(-10, -52)..quadraticBezierTo(-31, -76, -17, -91)
+      ..moveTo(10, -52)..quadraticBezierTo(31, -76, 17, -91);
+    canvas.drawPath(feelers, legsPaint);
+    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _SpiderWebPainter oldDelegate) =>
-      oldDelegate.animation != animation;
+  bool shouldRepaint(covariant _SpiderPainter oldDelegate) => oldDelegate.animation != animation;
+}
+
+class _GlowButton extends StatelessWidget {
+  const _GlowButton({required this.shine, required this.label, required this.onPressed});
+  final Animation<double> shine;
+  final String label;
+  final VoidCallback onPressed;
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: shine,
+        builder: (context, _) => Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: LinearGradient(begin: Alignment(-1 + 2 * shine.value, 0), end: Alignment(1 - 2 * shine.value, 0), colors: const [Color(0xFF6D254B), Color(0xFFE95A9D), Color(0xFF6D254B)]),
+            boxShadow: [BoxShadow(color: _pink.withOpacity(.2), blurRadius: 18)],
+          ),
+          child: FilledButton(
+            onPressed: onPressed,
+            style: FilledButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+            child: Padding(padding: const EdgeInsets.symmetric(vertical: 13), child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: .5))),
+          ),
+        ),
+      );
 }
