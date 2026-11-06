@@ -24,26 +24,29 @@ jobs:
         working-directory: flutter_app
         run: flutter create --platforms=windows .
 
-      - name: Configure frameless window and black native background
+      - name: Configure frameless window size and black background
         working-directory: flutter_app
         shell: pwsh
         run: |
+          $width = 424
+          $height = 812
+
           $mainPath = "windows/runner/main.cpp"
           $main = Get-Content $mainPath -Raw
 
           $main = [regex]::Replace(
             $main,
             'Win32Window::Point origin\([^;]*\);',
-            'Win32Window::Point origin((GetSystemMetrics(SM_CXSCREEN) - 440) / 2, (GetSystemMetrics(SM_CYSCREEN) - 820) / 2);'
+            "Win32Window::Point origin((GetSystemMetrics(SM_CXSCREEN) - $width) / 2, (GetSystemMetrics(SM_CYSCREEN) - $height) / 2);"
           )
           $main = [regex]::Replace(
             $main,
             'Win32Window::Size size\([^;]*\);',
-            'Win32Window::Size size(440, 820);'
+            "Win32Window::Size size($width, $height);"
           )
 
-          if ($main -notmatch 'Win32Window::Size size\(440, 820\);') {
-            throw "Could not set the window size in $mainPath"
+          if ($main -notmatch "Win32Window::Size size\($width, $height\);") {
+            throw "Could not set the native window size in $mainPath"
           }
 
           Set-Content -Path $mainPath -Value $main -NoNewline
@@ -70,6 +73,28 @@ jobs:
           )
 
           Set-Content -Path $windowPath -Value $window -NoNewline
+
+          $dartPath = "lib/main.dart"
+          $dart = Get-Content $dartPath -Raw
+          $minSizePattern = 'await windowManager\.setMinimumSize\(const Size\([^;]*\)\);'
+          $sizePattern = 'await windowManager\.setSize\(const Size\([^;]*\)\);'
+
+          if ($dart -notmatch $minSizePattern -or $dart -notmatch $sizePattern) {
+            throw "Could not find the Flutter window size settings in $dartPath"
+          }
+
+          $dart = [regex]::Replace(
+            $dart,
+            $minSizePattern,
+            "await windowManager.setMinimumSize(const Size($width, $height));"
+          )
+          $dart = [regex]::Replace(
+            $dart,
+            $sizePattern,
+            "await windowManager.setSize(const Size($width, $height));"
+          )
+
+          Set-Content -Path $dartPath -Value $dart -NoNewline
 
       - name: Install dependencies
         working-directory: flutter_app
