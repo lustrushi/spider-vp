@@ -20,12 +20,14 @@ class DemoAuthGate extends StatefulWidget {
 }
 
 class _DemoAuthGateState extends State<DemoAuthGate>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _shine;
+  late final AnimationController _weave;
+  late final AnimationController _entry;
   String? _username;
   String? _password;
   bool _authorized = false;
-  bool _registering = true;
+  bool _entering = false;
 
   @override
   void initState() {
@@ -34,12 +36,31 @@ class _DemoAuthGateState extends State<DemoAuthGate>
       vsync: this,
       duration: const Duration(seconds: 4),
     )..repeat();
+    _weave = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    )..addStatusListener(_onWeaveStatus);
+    _entry = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    );
   }
 
   @override
   void dispose() {
     _shine.dispose();
+    _weave.dispose();
+    _entry.dispose();
     super.dispose();
+  }
+
+  void _onWeaveStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed || !mounted || !_entering) return;
+    setState(() {
+      _entering = false;
+      _authorized = true;
+    });
+    _entry.forward(from: 0);
   }
 
   void _message(String value) {
@@ -50,14 +71,14 @@ class _DemoAuthGateState extends State<DemoAuthGate>
 
   void _register(String username, String password) {
     if (_username != null) {
-      setState(() => _registering = false);
+      setState(() => _entering = false);
       _message('Демо-аккаунт уже создан. Войдите в него.');
       return;
     }
     setState(() {
       _username = username.trim();
       _password = password;
-      _registering = false;
+      _entering = false;
     });
     _message('Аккаунт создан. Теперь войдите.');
   }
@@ -69,7 +90,8 @@ class _DemoAuthGateState extends State<DemoAuthGate>
       _message('Неверный логин или пароль.');
       return;
     }
-    setState(() => _authorized = true);
+    setState(() => _entering = true);
+    _weave.forward(from: 0);
   }
 
   Future<void> _recover() async {
@@ -173,17 +195,74 @@ class _DemoAuthGateState extends State<DemoAuthGate>
     passwordController.dispose();
     repeatController.dispose();
     if (newPassword != null && mounted) {
-      setState(() {
-        _password = newPassword;
-        _registering = false;
-      });
+      setState(() => _password = newPassword);
       _message('Пароль изменён. Войдите с новым паролем.');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_authorized) return widget.appBuilder(context);
+    if (_authorized) {
+      return FadeTransition(
+        opacity: CurvedAnimation(parent: _entry, curve: Curves.easeInOut),
+        child: widget.appBuilder(context),
+      );
+    }
+    if (_entering) {
+      return Scaffold(
+        backgroundColor: _bg,
+        body: SafeArea(
+          child: Center(
+            child: AnimatedBuilder(
+              animation: Listenable.merge([_shine, _weave]),
+              builder: (context, _) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 280,
+                    height: 300,
+                    child: CustomPaint(
+                      painter: _SpiderTreePainter(
+                        progress: _weave.value,
+                        shimmer: _shine.value,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  ShaderMask(
+                    shaderCallback: (bounds) => LinearGradient(
+                      begin: Alignment(-1 + 2 * _shine.value, 0),
+                      end: Alignment(1 - 2 * _shine.value, 0),
+                      colors: const [_text, _rose, _text],
+                    ).createShader(bounds),
+                    child: const Text(
+                      'ПАУЧОК ПЛЕТЁТ ПАУТИНУ',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 2.2,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  SizedBox(
+                    width: 150,
+                    child: LinearProgressIndicator(
+                      value: _weave.value,
+                      minHeight: 3,
+                      backgroundColor: _panel,
+                      color: _pink,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: _bg,
       body: AnimatedBuilder(
@@ -207,17 +286,18 @@ class _DemoAuthGateState extends State<DemoAuthGate>
                 padding: const EdgeInsets.all(24),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 360),
-                  child: _registering
+                  child: _username == null
                       ? _RegistrationForm(
                           shine: _shine,
                           onRegister: _register,
-                          onLogin: () => setState(() => _registering = false),
+                          onLogin: () {},
+                          showLoginLink: false,
                         )
                       : _LoginForm(
                           shine: _shine,
                           onLogin: _login,
                           onForgot: _recover,
-                          onRegister: () => setState(() => _registering = true),
+                          onRegister: () {},
                         ),
                 ),
               ),
@@ -234,10 +314,12 @@ class _RegistrationForm extends StatefulWidget {
     required this.shine,
     required this.onRegister,
     required this.onLogin,
+    this.showLoginLink = true,
   });
   final Animation<double> shine;
   final void Function(String, String) onRegister;
   final VoidCallback onLogin;
+  final bool showLoginLink;
 
   @override
   State<_RegistrationForm> createState() => _RegistrationFormState();
@@ -322,10 +404,11 @@ class _RegistrationFormState extends State<_RegistrationForm> {
                 }
               },
             ),
-            TextButton(
-              onPressed: widget.onLogin,
-              child: const Text('Уже есть аккаунт? Войти'),
-            ),
+            if (widget.showLoginLink)
+              TextButton(
+                onPressed: widget.onLogin,
+                child: const Text('Уже есть аккаунт? Войти'),
+              ),
           ],
         ),
       );
@@ -440,7 +523,7 @@ class _Brand extends StatelessWidget {
               shaderCallback: (bounds) => LinearGradient(
                 begin: Alignment(-1 + 2 * shine.value, 0),
                 end: Alignment(1 - 2 * shine.value, 0),
-                colors: const [_text, Color(0xFFFFB4D4), _text],
+                colors: const [_text, _rose, _text],
               ).createShader(bounds),
               child: const Text(
                 'SPIDER VPN',
@@ -467,7 +550,7 @@ class _SpiderPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final scale = size.shortestSide / 300;
     final phase = animation.value;
-    final gradient = LinearGradient(
+    final shader = LinearGradient(
       begin: Alignment(-1 + 2 * phase, -1),
       end: Alignment(1 - 2 * phase, 1),
       colors: [
@@ -479,13 +562,12 @@ class _SpiderPainter extends CustomPainter {
       stops: const [0, .35, .58, 1],
     ).createShader(Offset.zero & size);
     final legsPaint = Paint()
-      ..shader = gradient
+      ..shader = shader
       ..style = PaintingStyle.stroke
       ..strokeWidth = 9
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-    final bodyPaint = Paint()..shader = gradient;
-
+    final bodyPaint = Paint()..shader = shader;
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.scale(scale);
@@ -502,8 +584,6 @@ class _SpiderPainter extends CustomPainter {
     for (final path in paths) {
       canvas.drawPath(path, legsPaint);
     }
-    // Rect.fromCenter is not const; keeping these runtime rectangles avoids
-    // the Windows build error from const constructor calls.
     canvas.drawOval(
       Rect.fromCenter(center: const Offset(0, 9), width: 61, height: 83),
       bodyPaint,
@@ -524,6 +604,145 @@ class _SpiderPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SpiderPainter oldDelegate) =>
       oldDelegate.animation != animation;
+}
+
+class _SpiderTreePainter extends CustomPainter {
+  const _SpiderTreePainter({required this.progress, required this.shimmer});
+  final double progress;
+  final double shimmer;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height * .69);
+    final scale = size.shortestSide / 300;
+    final tint = Color.lerp(_pink, _rose, (math.sin(shimmer * math.pi * 2) + 1) / 2)!;
+    final paint = Paint()
+      ..color = tint.withOpacity(.78)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.2 * scale
+      ..strokeCap = StrokeCap.round;
+    final glow = Paint()
+      ..color = tint.withOpacity(.15)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10 * scale
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
+
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.scale(scale);
+
+    // Stylized tree trunk and branches behind the growing web.
+    final trunk = Path()
+      ..moveTo(0, 118)
+      ..cubicTo(-8, 75, 9, 45, 0, 5)
+      ..cubicTo(-8, -30, -2, -60, 0, -95);
+    final branches = <Path>[
+      Path()..moveTo(-1, -28)..cubicTo(-28, -48, -42, -70, -54, -96),
+      Path()..moveTo(1, -35)..cubicTo(28, -52, 43, -73, 56, -101),
+      Path()..moveTo(0, 7)..cubicTo(-25, -2, -44, -18, -67, -39),
+      Path()..moveTo(0, -6)..cubicTo(26, -11, 48, -28, 68, -49),
+    ];
+    canvas.drawPath(trunk, glow);
+    canvas.drawPath(trunk, paint);
+    for (final branch in branches) {
+      canvas.drawPath(branch, glow);
+      canvas.drawPath(branch, paint);
+    }
+
+    final p = progress.clamp(0.0, 1.0);
+    const rays = 8;
+    const rings = 5;
+    final webCenter = const Offset(0, -33);
+    const webRadius = 105.0;
+    final webPaint = Paint()
+      ..color = tint.withOpacity(.8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.35
+      ..strokeCap = StrokeCap.round;
+    final webGlow = Paint()
+      ..color = tint.withOpacity(.22)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+    final rayProgress = (p / .55).clamp(0.0, 1.0);
+    for (var i = 0; i < rays; i++) {
+      final angle = -math.pi / 2 + i * math.pi * 2 / rays;
+      final end = Offset(
+        webCenter.dx + math.cos(angle) * webRadius * rayProgress,
+        webCenter.dy + math.sin(angle) * webRadius * rayProgress,
+      );
+      final ray = Path()..moveTo(webCenter.dx, webCenter.dy)..lineTo(end.dx, end.dy);
+      canvas.drawPath(ray, webGlow);
+      canvas.drawPath(ray, webPaint);
+    }
+
+    final ringProgress = ((p - .3) / .7).clamp(0.0, 1.0);
+    for (var ring = 1; ring <= rings; ring++) {
+      final reveal = (ringProgress * rings - ring + 1).clamp(0.0, 1.0);
+      if (reveal <= 0) continue;
+      final radius = webRadius * ring / rings;
+      final path = Path();
+      for (var i = 0; i <= rays; i++) {
+        final angle = -math.pi / 2 + i * math.pi * 2 / rays;
+        final point = Offset(
+          webCenter.dx + math.cos(angle) * radius,
+          webCenter.dy + math.sin(angle) * radius,
+        );
+        if (i == 0) {
+          path.moveTo(point.dx, point.dy);
+        } else {
+          final previousAngle = -math.pi / 2 + (i - 1) * math.pi * 2 / rays;
+          final middleAngle = (previousAngle + angle) / 2;
+          final control = Offset(
+            webCenter.dx + math.cos(middleAngle) * radius * .78,
+            webCenter.dy + math.sin(middleAngle) * radius * .78,
+          );
+          path.quadraticBezierTo(control.dx, control.dy, point.dx, point.dy);
+        }
+      }
+      final metrics = path.computeMetrics().toList();
+      if (metrics.isNotEmpty) {
+        final partial = metrics.first.extractPath(0, metrics.first.length * reveal);
+        canvas.drawPath(partial, webGlow);
+        canvas.drawPath(partial, webPaint);
+      }
+    }
+
+    // Tiny spider crawls around the web edge as it is being woven.
+    final angle = -math.pi / 2 + p * math.pi * 2;
+    final spider = Offset(
+      webCenter.dx + math.cos(angle) * webRadius * .78,
+      webCenter.dy + math.sin(angle) * webRadius * .78,
+    );
+    canvas.save();
+    canvas.translate(spider.dx, spider.dy);
+    canvas.rotate(angle + math.pi / 2);
+    final spiderPaint = Paint()
+      ..color = tint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round;
+    final body = Paint()..color = tint;
+    for (var i = 0; i < 4; i++) {
+      final y = (i - 1.5) * 3.1;
+      for (final side in [-1.0, 1.0]) {
+        final leg = Path()
+          ..moveTo(side * 2, y)
+          ..quadraticBezierTo(side * 7, y - 2, side * 11, y - 6)
+          ..moveTo(side * 2, y)
+          ..quadraticBezierTo(side * 7, y + 2, side * 11, y + 6);
+        canvas.drawPath(leg, spiderPaint);
+      }
+    }
+    canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: 7, height: 11), body);
+    canvas.restore();
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _SpiderTreePainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.shimmer != shimmer;
 }
 
 class _GlowButton extends StatelessWidget {
