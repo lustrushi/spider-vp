@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 const _demoBg = Color(0xFF05050A);
 const _demoPanel = Color(0xFF100D18);
 const _demoPurple = Color(0xFF9B35FF);
+const _demoLilac = Color(0xFFC28AFF);
 const _demoText = Color(0xFFF2ECFA);
 const _demoMuted = Color(0xFF9A8EAD);
 
@@ -24,12 +25,10 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
   bool _authorized = false;
   bool _showRegistration = true;
 
-  void _registered(String username, String password) {
+  Future<void> _registered(String username, String password) async {
     if (_username != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Демо-аккаунт уже создан. Войдите в него.')),
-      );
       setState(() => _showRegistration = false);
+      _message('Демо-аккаунт уже создан. Войдите в него.');
       return;
     }
 
@@ -38,13 +37,13 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
       _password = password;
       _showRegistration = false;
     });
-    _showLinkEmailDialog();
+    await _askForEmail();
   }
 
-  Future<void> _showLinkEmailDialog() async {
+  Future<void> _askForEmail() async {
     final controller = TextEditingController();
     final formKey = GlobalKey<FormState>();
-    final linkedEmail = await showDialog<String>(
+    final email = await showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
@@ -61,9 +60,8 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
               labelStyle: TextStyle(color: _demoMuted),
             ),
             validator: (value) {
-              final email = value?.trim() ?? '';
-              if (email.isNotEmpty &&
-                  (!email.contains('@') || !email.contains('.'))) {
+              final text = value?.trim() ?? '';
+              if (text.isNotEmpty && !_isEmail(text)) {
                 return 'Введите корректный адрес';
               }
               return null;
@@ -89,31 +87,26 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
     controller.dispose();
     if (!mounted) return;
 
-    // Registration does NOT log the user in: return to the login form.
     setState(() {
-      _email = linkedEmail?.isNotEmpty == true ? linkedEmail : null;
+      _email = email?.isNotEmpty == true ? email : null;
       _authorized = false;
       _showRegistration = false;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Аккаунт создан. Теперь войдите.')),
-    );
+    _message('Аккаунт создан. Теперь войдите.');
   }
 
   void _login(String username, String password) {
     if (_username == null ||
         username.trim().toLowerCase() != _username!.toLowerCase() ||
         password != _password) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Неверный логин или пароль.')),
-      );
+      _message('Неверный логин или пароль.');
       return;
     }
     setState(() => _authorized = true);
   }
 
   Future<void> _showRecovery() async {
-    final emailController = TextEditingController();
+    final controller = TextEditingController();
     final formKey = GlobalKey<FormState>();
     final email = await showDialog<String>(
       context: context,
@@ -123,16 +116,13 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
         content: Form(
           key: formKey,
           child: TextFormField(
-            controller: emailController,
+            controller: controller,
             keyboardType: TextInputType.emailAddress,
             style: const TextStyle(color: _demoText),
             decoration: const InputDecoration(labelText: 'Привязанная почта'),
-            validator: (value) {
-              final text = value?.trim() ?? '';
-              return text.contains('@') && text.contains('.')
-                  ? null
-                  : 'Введите корректную почту';
-            },
+            validator: (value) => _isEmail(value?.trim() ?? '')
+                ? null
+                : 'Введите корректную почту',
           ),
         ),
         actions: [
@@ -143,7 +133,7 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
           FilledButton(
             onPressed: () {
               if (formKey.currentState!.validate()) {
-                Navigator.pop(dialogContext, emailController.text.trim());
+                Navigator.pop(dialogContext, controller.text.trim());
               }
             },
             child: const Text('Продолжить'),
@@ -151,24 +141,44 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
         ],
       ),
     );
-    emailController.dispose();
+    controller.dispose();
     if (!mounted || email == null) return;
 
     if (_email == null || email.toLowerCase() != _email!.toLowerCase()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Аккаунт с такой привязанной почтой не найден.')),
-      );
+      _message('Аккаунт с такой привязанной почтой не найден.');
       return;
     }
 
-    await _showResetPasswordDialog();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _demoPanel,
+        title: const Text('Демо-восстановление', style: TextStyle(color: _demoText)),
+        content: Text(
+          'Логин вашего демо-аккаунта: $_username. Письмо не отправляется. '
+          'Продолжить и задать новый пароль?',
+          style: const TextStyle(color: _demoText),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Задать пароль'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) await _showResetPasswordDialog();
   }
 
   Future<void> _showResetPasswordDialog() async {
     final passwordController = TextEditingController();
     final confirmController = TextEditingController();
     final formKey = GlobalKey<FormState>();
-    final result = await showDialog<String>(
+    final password = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: _demoPanel,
@@ -217,16 +227,22 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
     );
     passwordController.dispose();
     confirmController.dispose();
-    if (result != null && mounted) {
+    if (password != null && mounted) {
       setState(() {
-        _password = result;
+        _password = password;
         _authorized = false;
         _showRegistration = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Пароль изменён. Войдите с новым паролем.')),
-      );
+      _message('Пароль изменён. Войдите с новым паролем.');
     }
+  }
+
+  bool _isEmail(String value) =>
+      value.contains('@') && value.substring(value.indexOf('@') + 1).contains('.');
+
+  void _message(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   @override
@@ -260,7 +276,6 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
 
 class _RegistrationForm extends StatefulWidget {
   const _RegistrationForm({required this.onRegister});
-
   final void Function(String username, String password) onRegister;
 
   @override
@@ -288,7 +303,7 @@ class _RegistrationFormState extends State<_RegistrationForm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.shield_rounded, color: _demoPurple, size: 54),
+            const _SpiderWebMark(size: 112),
             const SizedBox(height: 16),
             const Text(
               'Создать аккаунт',
@@ -386,7 +401,7 @@ class _LoginFormState extends State<_LoginForm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.shield_rounded, color: _demoPurple, size: 54),
+            const _SpiderWebMark(size: 112),
             const SizedBox(height: 16),
             const Text(
               'Вход в аккаунт',
@@ -441,4 +456,107 @@ class _LoginFormState extends State<_LoginForm> {
           ],
         ),
       );
+}
+
+class _SpiderWebMark extends StatelessWidget {
+  const _SpiderWebMark({required this.size});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(painter: _SpiderWebPainter()),
+      );
+}
+
+class _SpiderWebPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.shortestSide * .43;
+    final webPaint = Paint()
+      ..color = _demoPurple.withOpacity(.72)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.15;
+    final spiderPaint = Paint()
+      ..color = _demoLilac
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round;
+    final bodyPaint = Paint()..color = _demoPurple;
+
+    // Radial threads and curved-looking concentric web rings.
+    const rays = 8;
+    for (var i = 0; i < rays; i++) {
+      final angle = -math.pi / 2 + math.pi * 2 * i / rays;
+      canvas.drawLine(
+        center,
+        Offset(center.dx + math.cos(angle) * radius, center.dy + math.sin(angle) * radius),
+        webPaint,
+      );
+    }
+    for (var ring = 1; ring <= 4; ring++) {
+      final ringRadius = radius * ring / 4;
+      final path = Path();
+      for (var i = 0; i <= rays; i++) {
+        final angle = -math.pi / 2 + math.pi * 2 * i / rays;
+        final point = Offset(
+          center.dx + math.cos(angle) * ringRadius,
+          center.dy + math.sin(angle) * ringRadius,
+        );
+        if (i == 0) {
+          path.moveTo(point.dx, point.dy);
+        } else {
+          final previousAngle = -math.pi / 2 + math.pi * 2 * (i - 1) / rays;
+          final middleAngle = (previousAngle + angle) / 2;
+          final control = Offset(
+            center.dx + math.cos(middleAngle) * ringRadius * .78,
+            center.dy + math.sin(middleAngle) * ringRadius * .78,
+          );
+          path.quadraticBezierTo(control.dx, control.dy, point.dx, point.dy);
+        }
+      }
+      canvas.drawPath(path, webPaint);
+    }
+
+    // Small spider in the center of the web.
+    for (var i = 0; i < 4; i++) {
+      final y = (i - 1.5) * size.width * .045;
+      for (final side in [-1.0, 1.0]) {
+        final leg = Path()
+          ..moveTo(center.dx + side * size.width * .025, center.dy + y)
+          ..quadraticBezierTo(
+            center.dx + side * size.width * .09,
+            center.dy + y - size.width * .035,
+            center.dx + side * size.width * .14,
+            center.dy + y - size.width * .09,
+          )
+          ..moveTo(center.dx + side * size.width * .025, center.dy + y)
+          ..quadraticBezierTo(
+            center.dx + side * size.width * .09,
+            center.dy + y + size.width * .035,
+            center.dx + side * size.width * .14,
+            center.dy + y + size.width * .09,
+          );
+        canvas.drawPath(leg, spiderPaint);
+      }
+    }
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: center,
+        width: size.width * .13,
+        height: size.width * .23,
+      ),
+      bodyPaint,
+    );
+    canvas.drawCircle(
+      Offset(center.dx, center.dy - size.width * .14),
+      size.width * .055,
+      Paint()..color = _demoLilac,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SpiderWebPainter oldDelegate) => false;
 }
