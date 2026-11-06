@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 const _demoBg = Color(0xFF05050A);
@@ -369,11 +371,7 @@ class _RegistrationFormState extends State<_RegistrationForm> {
 }
 
 class _LoginForm extends StatefulWidget {
-  const _LoginForm({
-    required this.onLogin,
-    required this.onForgot,
-    required this.onCreateAccount,
-  });
+  const _LoginForm({required this.onLogin, required this.onForgot, required this.onCreateAccount});
 
   final void Function(String username, String password) onLogin;
   final VoidCallback onForgot;
@@ -431,10 +429,7 @@ class _LoginFormState extends State<_LoginForm> {
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: widget.onForgot,
-                child: const Text(
-                  'Забыл логин/пароль?',
-                  style: TextStyle(color: _demoMuted, fontSize: 12),
-                ),
+                child: const Text('Забыл логин/пароль?', style: TextStyle(color: _demoMuted, fontSize: 12)),
               ),
             ),
             const SizedBox(height: 12),
@@ -449,10 +444,7 @@ class _LoginFormState extends State<_LoginForm> {
                 child: Text('Войти'),
               ),
             ),
-            TextButton(
-              onPressed: widget.onCreateAccount,
-              child: const Text('Создать аккаунт'),
-            ),
+            TextButton(onPressed: widget.onCreateAccount, child: const Text('Создать аккаунт')),
           ],
         ),
       );
@@ -486,7 +478,6 @@ class _SpiderWebPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     final bodyPaint = Paint()..color = _demoPurple;
 
-    // Radial threads and curved-looking concentric web rings.
     const rays = 8;
     for (var i = 0; i < rays; i++) {
       final angle = -math.pi / 2 + math.pi * 2 * i / rays;
@@ -520,7 +511,6 @@ class _SpiderWebPainter extends CustomPainter {
       canvas.drawPath(path, webPaint);
     }
 
-    // Small spider in the center of the web.
     for (var i = 0; i < 4; i++) {
       final y = (i - 1.5) * size.width * .045;
       for (final side in [-1.0, 1.0]) {
@@ -543,11 +533,7 @@ class _SpiderWebPainter extends CustomPainter {
       }
     }
     canvas.drawOval(
-      Rect.fromCenter(
-        center: center,
-        width: size.width * .13,
-        height: size.width * .23,
-      ),
+      Rect.fromCenter(center: center, width: size.width * .13, height: size.width * .23),
       bodyPaint,
     );
     canvas.drawCircle(
