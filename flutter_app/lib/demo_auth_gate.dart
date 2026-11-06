@@ -1,6 +1,9 @@
+import 'dart:io' show Platform, exit;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
 
 const _bg = Color(0xFF08060B);
 const _panel = Color(0xFF151019);
@@ -32,18 +35,10 @@ class _DemoAuthGateState extends State<DemoAuthGate>
   @override
   void initState() {
     super.initState();
-    _shine = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..repeat();
-    _weave = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 3000),
-    )..addStatusListener(_onWeaveStatus);
-    _entry = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 850),
-    );
+    _shine = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
+    _weave = AnimationController(vsync: this, duration: const Duration(milliseconds: 3000))
+      ..addStatusListener(_onWeaveStatus);
+    _entry = AnimationController(vsync: this, duration: const Duration(milliseconds: 850));
   }
 
   @override
@@ -64,29 +59,19 @@ class _DemoAuthGateState extends State<DemoAuthGate>
   }
 
   void _message(String value) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
-    }
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
 
   void _register(String username, String password) {
-    if (_username != null) {
-      setState(() => _entering = false);
-      _message('Демо-аккаунт уже создан. Войдите в него.');
-      return;
-    }
     setState(() {
       _username = username.trim();
       _password = password;
-      _entering = false;
     });
     _message('Аккаунт создан. Теперь войдите.');
   }
 
   void _login(String username, String password) {
-    if (_username == null ||
-        username.trim().toLowerCase() != _username!.toLowerCase() ||
-        password != _password) {
+    if (_username == null || username.trim().toLowerCase() != _username!.toLowerCase() || password != _password) {
       _message('Неверный логин или пароль.');
       return;
     }
@@ -112,21 +97,14 @@ class _DemoAuthGateState extends State<DemoAuthGate>
             controller: usernameController,
             style: const TextStyle(color: _text),
             decoration: const InputDecoration(labelText: 'Логин аккаунта'),
-            validator: (value) => (value?.trim().isNotEmpty ?? false)
-                ? null
-                : 'Введите логин',
+            validator: (value) => (value?.trim().isNotEmpty ?? false) ? null : 'Введите логин',
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Отмена'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Отмена')),
           FilledButton(
             onPressed: () {
-              if (usernameKey.currentState!.validate()) {
-                Navigator.pop(dialogContext, usernameController.text.trim());
-              }
+              if (usernameKey.currentState!.validate()) Navigator.pop(dialogContext, usernameController.text.trim());
             },
             child: const Text('Продолжить'),
           ),
@@ -143,7 +121,7 @@ class _DemoAuthGateState extends State<DemoAuthGate>
     final passwordController = TextEditingController();
     final repeatController = TextEditingController();
     final passwordKey = GlobalKey<FormState>();
-    final newPassword = await showDialog<String>(
+    final password = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: _panel,
@@ -153,39 +131,27 @@ class _DemoAuthGateState extends State<DemoAuthGate>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Демо-восстановление выполняется локально. Письмо не отправляется.',
-                style: TextStyle(color: _muted),
-              ),
+              const Text('Демо-восстановление выполняется локально.', style: TextStyle(color: _muted)),
               TextFormField(
                 controller: passwordController,
                 obscureText: true,
                 decoration: const InputDecoration(labelText: 'Новый пароль'),
-                validator: (value) => (value ?? '').length >= 6
-                    ? null
-                    : 'Минимум 6 символов',
+                validator: (value) => (value ?? '').length >= 6 ? null : 'Минимум 6 символов',
               ),
               TextFormField(
                 controller: repeatController,
                 obscureText: true,
                 decoration: const InputDecoration(labelText: 'Повторите пароль'),
-                validator: (value) => value == passwordController.text
-                    ? null
-                    : 'Пароли не совпадают',
+                validator: (value) => value == passwordController.text ? null : 'Пароли не совпадают',
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Отмена'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Отмена')),
           FilledButton(
             onPressed: () {
-              if (passwordKey.currentState!.validate()) {
-                Navigator.pop(dialogContext, passwordController.text);
-              }
+              if (passwordKey.currentState!.validate()) Navigator.pop(dialogContext, passwordController.text);
             },
             child: const Text('Сохранить'),
           ),
@@ -194,9 +160,17 @@ class _DemoAuthGateState extends State<DemoAuthGate>
     );
     passwordController.dispose();
     repeatController.dispose();
-    if (newPassword != null && mounted) {
-      setState(() => _password = newPassword);
+    if (password != null && mounted) {
+      setState(() => _password = password);
       _message('Пароль изменён. Войдите с новым паролем.');
+    }
+  }
+
+  void _close() {
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      exit(0);
+    } else {
+      SystemNavigator.pop();
     }
   }
 
@@ -208,61 +182,48 @@ class _DemoAuthGateState extends State<DemoAuthGate>
         child: widget.appBuilder(context),
       );
     }
+
     if (_entering) {
       return Scaffold(
         backgroundColor: _bg,
         body: SafeArea(
-          child: Center(
-            child: AnimatedBuilder(
-              animation: Listenable.merge([_shine, _weave]),
-              builder: (context, _) => Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_shine, _weave]),
+            builder: (context, _) => Stack(
+              children: [
+                Center(
+                  child: SizedBox(
                     width: 280,
                     height: 300,
-                    child: CustomPaint(
-                      painter: _SpiderTreePainter(
-                        progress: _weave.value,
-                        shimmer: _shine.value,
+                    child: CustomPaint(painter: _SpiderTreePainter(progress: _weave.value, shimmer: _shine.value)),
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 20,
+                  child: Center(
+                    child: SizedBox(
+                      width: 112,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: _weave.value,
+                          minHeight: 2,
+                          backgroundColor: const Color(0xFF28151F),
+                          color: _pink,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 22),
-                  ShaderMask(
-                    shaderCallback: (bounds) => LinearGradient(
-                      begin: Alignment(-1 + 2 * _shine.value, 0),
-                      end: Alignment(1 - 2 * _shine.value, 0),
-                      colors: const [_text, _rose, _text],
-                    ).createShader(bounds),
-                    child: const Text(
-                      'ПАУЧОК ПЛЕТЁТ ПАУТИНУ',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 2.2,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  SizedBox(
-                    width: 150,
-                    child: LinearProgressIndicator(
-                      value: _weave.value,
-                      minHeight: 3,
-                      backgroundColor: _panel,
-                      color: _pink,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
       );
     }
+
     return Scaffold(
       backgroundColor: _bg,
       body: AnimatedBuilder(
@@ -272,35 +233,27 @@ class _DemoAuthGateState extends State<DemoAuthGate>
             gradient: LinearGradient(
               begin: Alignment(-1 + 2 * _shine.value, -1),
               end: Alignment(1 - 2 * _shine.value, 1),
-              colors: const [
-                Color(0xFF08060B),
-                Color(0xFF1D101A),
-                Color(0xFF100B13),
-                Color(0xFF08060B),
-              ],
+              colors: const [Color(0xFF08060B), Color(0xFF1D101A), Color(0xFF100B13), Color(0xFF08060B)],
             ),
           ),
           child: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 360),
-                  child: _username == null
-                      ? _RegistrationForm(
-                          shine: _shine,
-                          onRegister: _register,
-                          onLogin: () {},
-                          showLoginLink: false,
-                        )
-                      : _LoginForm(
-                          shine: _shine,
-                          onLogin: _login,
-                          onForgot: _recover,
-                          onRegister: () {},
-                        ),
+            child: Column(
+              children: [
+                _AuthTitleBar(onClose: _close),
+                Expanded(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 360),
+                        child: _username == null
+                            ? _RegistrationForm(shine: _shine, onRegister: _register)
+                            : _LoginForm(shine: _shine, onLogin: _login, onForgot: _recover),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -309,18 +262,37 @@ class _DemoAuthGateState extends State<DemoAuthGate>
   }
 }
 
+class _AuthTitleBar extends StatelessWidget {
+  const _AuthTitleBar({required this.onClose});
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        height: 42,
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: 'Закрыть приложение',
+              onPressed: onClose,
+              icon: const Icon(Icons.close_rounded, color: _rose, size: 23),
+            ),
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onPanStart: (_) => windowManager.startDragging(),
+                child: const SizedBox(height: 42, child: Center(child: Text('Spider VPN', style: TextStyle(color: _text, fontWeight: FontWeight.w600, letterSpacing: 1.2)))),
+              ),
+            ),
+            const SizedBox(width: 48),
+          ],
+        ),
+      );
+}
+
 class _RegistrationForm extends StatefulWidget {
-  const _RegistrationForm({
-    required this.shine,
-    required this.onRegister,
-    required this.onLogin,
-    this.showLoginLink = true,
-  });
+  const _RegistrationForm({required this.shine, required this.onRegister});
   final Animation<double> shine;
   final void Function(String, String) onRegister;
-  final VoidCallback onLogin;
-  final bool showLoginLink;
-
   @override
   State<_RegistrationForm> createState() => _RegistrationFormState();
 }
@@ -347,85 +319,34 @@ class _RegistrationFormState extends State<_RegistrationForm> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _Brand(shine: widget.shine),
-            const SizedBox(height: 25),
-            const Text(
-              'Создать аккаунт',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: _text, fontSize: 22, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Придумайте логин и пароль',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: _muted),
-            ),
-            const SizedBox(height: 26),
-            TextFormField(
-              controller: _username,
-              style: const TextStyle(color: _text),
-              decoration: const InputDecoration(labelText: 'Логин'),
-              validator: (value) => (value?.trim().length ?? 0) >= 3
-                  ? null
-                  : 'Минимум 3 символа',
-            ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 22),
+            const Text('Создать аккаунт', textAlign: TextAlign.center, style: TextStyle(color: _text, fontSize: 22, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 7),
+            const Text('Придумайте логин и пароль', textAlign: TextAlign.center, style: TextStyle(color: _muted)),
+            const SizedBox(height: 24),
+            TextFormField(controller: _username, style: const TextStyle(color: _text), decoration: const InputDecoration(labelText: 'Логин'), validator: (v) => (v?.trim().length ?? 0) >= 3 ? null : 'Минимум 3 символа'),
+            const SizedBox(height: 12),
             TextFormField(
               controller: _password,
               obscureText: _obscure,
               style: const TextStyle(color: _text),
-              decoration: InputDecoration(
-                labelText: 'Пароль',
-                suffixIcon: IconButton(
-                  onPressed: () => setState(() => _obscure = !_obscure),
-                  icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                ),
-              ),
-              validator: (value) => (value ?? '').length >= 6
-                  ? null
-                  : 'Минимум 6 символов',
+              decoration: InputDecoration(labelText: 'Пароль', suffixIcon: IconButton(onPressed: () => setState(() => _obscure = !_obscure), icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off))),
+              validator: (v) => (v ?? '').length >= 6 ? null : 'Минимум 6 символов',
             ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _repeat,
-              obscureText: _obscure,
-              style: const TextStyle(color: _text),
-              decoration: const InputDecoration(labelText: 'Повторите пароль'),
-              validator: (value) => value == _password.text
-                  ? null
-                  : 'Пароли не совпадают',
-            ),
-            const SizedBox(height: 22),
-            _GlowButton(
-              shine: widget.shine,
-              label: 'Зарегистрироваться',
-              onPressed: () {
-                if (_key.currentState!.validate()) {
-                  widget.onRegister(_username.text.trim(), _password.text);
-                }
-              },
-            ),
-            if (widget.showLoginLink)
-              TextButton(
-                onPressed: widget.onLogin,
-                child: const Text('Уже есть аккаунт? Войти'),
-              ),
+            const SizedBox(height: 12),
+            TextFormField(controller: _repeat, obscureText: _obscure, style: const TextStyle(color: _text), decoration: const InputDecoration(labelText: 'Повторите пароль'), validator: (v) => v == _password.text ? null : 'Пароли не совпадают'),
+            const SizedBox(height: 20),
+            _GlowButton(shine: widget.shine, label: 'Зарегистрироваться', onPressed: () { if (_key.currentState!.validate()) widget.onRegister(_username.text.trim(), _password.text); }),
           ],
         ),
       );
 }
 
 class _LoginForm extends StatefulWidget {
-  const _LoginForm({
-    required this.shine,
-    required this.onLogin,
-    required this.onForgot,
-    required this.onRegister,
-  });
+  const _LoginForm({required this.shine, required this.onLogin, required this.onForgot});
   final Animation<double> shine;
   final void Function(String, String) onLogin;
   final VoidCallback onForgot;
-  final VoidCallback onRegister;
-
   @override
   State<_LoginForm> createState() => _LoginFormState();
 }
@@ -434,13 +355,8 @@ class _LoginFormState extends State<_LoginForm> {
   final _key = GlobalKey<FormState>();
   final _username = TextEditingController();
   final _password = TextEditingController();
-
   @override
-  void dispose() {
-    _username.dispose();
-    _password.dispose();
-    super.dispose();
-  }
+  void dispose() { _username.dispose(); _password.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) => Form(
@@ -449,55 +365,15 @@ class _LoginFormState extends State<_LoginForm> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _Brand(shine: widget.shine),
-            const SizedBox(height: 25),
-            const Text(
-              'Вход в аккаунт',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: _text, fontSize: 22, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 26),
-            TextFormField(
-              controller: _username,
-              style: const TextStyle(color: _text),
-              decoration: const InputDecoration(labelText: 'Логин'),
-              validator: (value) => (value?.trim().isNotEmpty ?? false)
-                  ? null
-                  : 'Введите логин',
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _password,
-              obscureText: true,
-              style: const TextStyle(color: _text),
-              decoration: const InputDecoration(labelText: 'Пароль'),
-              validator: (value) => (value?.isNotEmpty ?? false)
-                  ? null
-                  : 'Введите пароль',
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: widget.onForgot,
-                child: const Text(
-                  'Забыл логин/пароль?',
-                  style: TextStyle(color: _muted, fontSize: 12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            _GlowButton(
-              shine: widget.shine,
-              label: 'Войти',
-              onPressed: () {
-                if (_key.currentState!.validate()) {
-                  widget.onLogin(_username.text.trim(), _password.text);
-                }
-              },
-            ),
-            TextButton(
-              onPressed: widget.onRegister,
-              child: const Text('Создать аккаунт'),
-            ),
+            const SizedBox(height: 22),
+            const Text('Вход в аккаунт', textAlign: TextAlign.center, style: TextStyle(color: _text, fontSize: 22, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 24),
+            TextFormField(controller: _username, style: const TextStyle(color: _text), decoration: const InputDecoration(labelText: 'Логин'), validator: (v) => (v?.trim().isNotEmpty ?? false) ? null : 'Введите логин'),
+            const SizedBox(height: 12),
+            TextFormField(controller: _password, obscureText: true, style: const TextStyle(color: _text), decoration: const InputDecoration(labelText: 'Пароль'), validator: (v) => (v?.isNotEmpty ?? false) ? null : 'Введите пароль'),
+            Align(alignment: Alignment.centerRight, child: TextButton(onPressed: widget.onForgot, child: const Text('Забыл логин/пароль?', style: TextStyle(color: _muted, fontSize: 12)))),
+            const SizedBox(height: 8),
+            _GlowButton(shine: widget.shine, label: 'Войти', onPressed: () { if (_key.currentState!.validate()) widget.onLogin(_username.text.trim(), _password.text); }),
           ],
         ),
       );
@@ -506,35 +382,17 @@ class _LoginFormState extends State<_LoginForm> {
 class _Brand extends StatelessWidget {
   const _Brand({required this.shine});
   final Animation<double> shine;
-
   @override
   Widget build(BuildContext context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            width: 190,
-            height: 190,
-            child: CustomPaint(painter: _SpiderPainter(shine)),
-          ),
-          const SizedBox(height: 7),
+          SizedBox(width: 190, height: 190, child: CustomPaint(painter: _SpiderPainter(shine))),
+          const SizedBox(height: 5),
           AnimatedBuilder(
             animation: shine,
             builder: (context, _) => ShaderMask(
-              shaderCallback: (bounds) => LinearGradient(
-                begin: Alignment(-1 + 2 * shine.value, 0),
-                end: Alignment(1 - 2 * shine.value, 0),
-                colors: const [_text, _rose, _text],
-              ).createShader(bounds),
-              child: const Text(
-                'SPIDER VPN',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontFamily: 'serif',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 4.5,
-                ),
-              ),
+              shaderCallback: (bounds) => LinearGradient(begin: Alignment(-1 + 2 * shine.value, 0), end: Alignment(1 - 2 * shine.value, 0), colors: const [_text, _rose, _text]).createShader(bounds),
+              child: const Text('SPIDER VPN', style: TextStyle(color: Colors.white, fontFamily: 'serif', fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 4.5)),
             ),
           ),
         ],
@@ -544,7 +402,6 @@ class _Brand extends StatelessWidget {
 class _SpiderPainter extends CustomPainter {
   _SpiderPainter(this.animation) : super(repaint: animation);
   final Animation<double> animation;
-
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
@@ -553,57 +410,33 @@ class _SpiderPainter extends CustomPainter {
     final shader = LinearGradient(
       begin: Alignment(-1 + 2 * phase, -1),
       end: Alignment(1 - 2 * phase, 1),
-      colors: [
-        const Color(0x884A172E),
-        Color.lerp(_pink, _rose, (math.sin(phase * math.pi * 2) + 1) / 2)!,
-        const Color(0xFFFFE0ED),
-        _pink,
-      ],
+      colors: [const Color(0x884A172E), Color.lerp(_pink, _rose, (math.sin(phase * math.pi * 2) + 1) / 2)!, const Color(0xFFFFE0ED), _pink],
       stops: const [0, .35, .58, 1],
     ).createShader(Offset.zero & size);
-    final legsPaint = Paint()
-      ..shader = shader
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 9
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final bodyPaint = Paint()..shader = shader;
+    final line = Paint()..shader = shader..style = PaintingStyle.stroke..strokeWidth = 9..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round;
+    final fill = Paint()..shader = shader;
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.scale(scale);
-    final paths = <Path>[
-      Path()..moveTo(-9, -25)..cubicTo(-42, -53, -54, -83, -60, -111)..cubicTo(-66, -137, -66, -166, -82, -191),
-      Path()..moveTo(9, -25)..cubicTo(42, -53, 54, -83, 60, -111)..cubicTo(66, -137, 66, -166, 82, -191),
-      Path()..moveTo(-16, -19)..cubicTo(-56, -39, -92, -44, -120, -72)..cubicTo(-137, -89, -143, -108, -159, -124),
-      Path()..moveTo(16, -19)..cubicTo(56, -39, 92, -44, 120, -72)..cubicTo(137, -89, 143, -108, 159, -124),
-      Path()..moveTo(-17, -2)..cubicTo(-60, -2, -100, 4, -128, 24)..cubicTo(-151, 40, -160, 61, -178, 76),
-      Path()..moveTo(17, -2)..cubicTo(60, -2, 100, 4, 128, 24)..cubicTo(151, 40, 160, 61, 178, 76),
-      Path()..moveTo(-12, 17)..cubicTo(-48, 39, -78, 58, -83, 95)..cubicTo(-87, 132, -67, 164, -52, 190),
-      Path()..moveTo(12, 17)..cubicTo(48, 39, 78, 58, 83, 95)..cubicTo(87, 132, 67, 164, 52, 190),
+    final legs = <Path>[
+      Path()..moveTo(-9,-25)..cubicTo(-42,-53,-54,-83,-60,-111)..cubicTo(-66,-137,-66,-166,-82,-191),
+      Path()..moveTo(9,-25)..cubicTo(42,-53,54,-83,60,-111)..cubicTo(66,-137,66,-166,82,-191),
+      Path()..moveTo(-16,-19)..cubicTo(-56,-39,-92,-44,-120,-72)..cubicTo(-137,-89,-143,-108,-159,-124),
+      Path()..moveTo(16,-19)..cubicTo(56,-39,92,-44,120,-72)..cubicTo(137,-89,143,-108,159,-124),
+      Path()..moveTo(-17,-2)..cubicTo(-60,-2,-100,4,-128,24)..cubicTo(-151,40,-160,61,-178,76),
+      Path()..moveTo(17,-2)..cubicTo(60,-2,100,4,128,24)..cubicTo(151,40,160,61,178,76),
+      Path()..moveTo(-12,17)..cubicTo(-48,39,-78,58,-83,95)..cubicTo(-87,132,-67,164,-52,190),
+      Path()..moveTo(12,17)..cubicTo(48,39,78,58,83,95)..cubicTo(87,132,67,164,52,190),
     ];
-    for (final path in paths) {
-      canvas.drawPath(path, legsPaint);
-    }
-    canvas.drawOval(
-      Rect.fromCenter(center: const Offset(0, 9), width: 61, height: 83),
-      bodyPaint,
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: const Offset(0, -34), width: 51, height: 48),
-      bodyPaint,
-    );
-    final feelers = Path()
-      ..moveTo(-10, -52)
-      ..quadraticBezierTo(-31, -76, -17, -91)
-      ..moveTo(10, -52)
-      ..quadraticBezierTo(31, -76, 17, -91);
-    canvas.drawPath(feelers, legsPaint);
+    for (final leg in legs) { canvas.drawPath(leg, line); }
+    canvas.drawOval(Rect.fromCenter(center: const Offset(0, 9), width: 61, height: 83), fill);
+    canvas.drawOval(Rect.fromCenter(center: const Offset(0, -34), width: 51, height: 48), fill);
+    final fangs = Path()..moveTo(-10,-52)..quadraticBezierTo(-31,-76,-17,-91)..moveTo(10,-52)..quadraticBezierTo(31,-76,17,-91);
+    canvas.drawPath(fangs, line);
     canvas.restore();
   }
-
   @override
-  bool shouldRepaint(covariant _SpiderPainter oldDelegate) =>
-      oldDelegate.animation != animation;
+  bool shouldRepaint(covariant _SpiderPainter oldDelegate) => oldDelegate.animation != animation;
 }
 
 class _SpiderTreePainter extends CustomPainter {
@@ -616,67 +449,39 @@ class _SpiderTreePainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height * .69);
     final scale = size.shortestSide / 300;
     final tint = Color.lerp(_pink, _rose, (math.sin(shimmer * math.pi * 2) + 1) / 2)!;
-    final paint = Paint()
-      ..color = tint.withOpacity(.78)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.2 * scale
-      ..strokeCap = StrokeCap.round;
-    final glow = Paint()
-      ..color = tint.withOpacity(.15)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 10 * scale
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
-
+    final treePaint = Paint()..color = tint.withOpacity(.78)..style = PaintingStyle.stroke..strokeWidth = 3.2 * scale..strokeCap = StrokeCap.round;
+    final treeGlow = Paint()..color = tint.withOpacity(.15)..style = PaintingStyle.stroke..strokeWidth = 10 * scale..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.scale(scale);
 
-    // Stylized tree trunk and branches behind the growing web.
-    final trunk = Path()
-      ..moveTo(0, 118)
-      ..cubicTo(-8, 75, 9, 45, 0, 5)
-      ..cubicTo(-8, -30, -2, -60, 0, -95);
+    final trunk = Path()..moveTo(0,118)..cubicTo(-8,75,9,45,0,5)..cubicTo(-8,-30,-2,-60,0,-95);
     final branches = <Path>[
-      Path()..moveTo(-1, -28)..cubicTo(-28, -48, -42, -70, -54, -96),
-      Path()..moveTo(1, -35)..cubicTo(28, -52, 43, -73, 56, -101),
-      Path()..moveTo(0, 7)..cubicTo(-25, -2, -44, -18, -67, -39),
-      Path()..moveTo(0, -6)..cubicTo(26, -11, 48, -28, 68, -49),
+      Path()..moveTo(-1,-28)..cubicTo(-28,-48,-42,-70,-54,-96),
+      Path()..moveTo(1,-35)..cubicTo(28,-52,43,-73,56,-101),
+      Path()..moveTo(0,7)..cubicTo(-25,-2,-44,-18,-67,-39),
+      Path()..moveTo(0,-6)..cubicTo(26,-11,48,-28,68,-49),
     ];
-    canvas.drawPath(trunk, glow);
-    canvas.drawPath(trunk, paint);
-    for (final branch in branches) {
-      canvas.drawPath(branch, glow);
-      canvas.drawPath(branch, paint);
-    }
+    canvas.drawPath(trunk, treeGlow);
+    canvas.drawPath(trunk, treePaint);
+    for (final branch in branches) { canvas.drawPath(branch, treeGlow); canvas.drawPath(branch, treePaint); }
 
+    // Only the web is animated here: no spider or text is drawn on this screen.
     final p = progress.clamp(0.0, 1.0);
     const rays = 8;
     const rings = 5;
-    final webCenter = const Offset(0, -33);
+    const webCenter = Offset(0, -33);
     const webRadius = 105.0;
-    final webPaint = Paint()
-      ..color = tint.withOpacity(.8)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.35
-      ..strokeCap = StrokeCap.round;
-    final webGlow = Paint()
-      ..color = tint.withOpacity(.22)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 5
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-
+    final webPaint = Paint()..color = tint.withOpacity(.83)..style = PaintingStyle.stroke..strokeWidth = 1.4..strokeCap = StrokeCap.round;
+    final webGlow = Paint()..color = tint.withOpacity(.2)..style = PaintingStyle.stroke..strokeWidth = 5..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
     final rayProgress = (p / .55).clamp(0.0, 1.0);
     for (var i = 0; i < rays; i++) {
       final angle = -math.pi / 2 + i * math.pi * 2 / rays;
-      final end = Offset(
-        webCenter.dx + math.cos(angle) * webRadius * rayProgress,
-        webCenter.dy + math.sin(angle) * webRadius * rayProgress,
-      );
+      final end = Offset(webCenter.dx + math.cos(angle) * webRadius * rayProgress, webCenter.dy + math.sin(angle) * webRadius * rayProgress);
       final ray = Path()..moveTo(webCenter.dx, webCenter.dy)..lineTo(end.dx, end.dy);
       canvas.drawPath(ray, webGlow);
       canvas.drawPath(ray, webPaint);
     }
-
     final ringProgress = ((p - .3) / .7).clamp(0.0, 1.0);
     for (var ring = 1; ring <= rings; ring++) {
       final reveal = (ringProgress * rings - ring + 1).clamp(0.0, 1.0);
@@ -685,19 +490,13 @@ class _SpiderTreePainter extends CustomPainter {
       final path = Path();
       for (var i = 0; i <= rays; i++) {
         final angle = -math.pi / 2 + i * math.pi * 2 / rays;
-        final point = Offset(
-          webCenter.dx + math.cos(angle) * radius,
-          webCenter.dy + math.sin(angle) * radius,
-        );
+        final point = Offset(webCenter.dx + math.cos(angle) * radius, webCenter.dy + math.sin(angle) * radius);
         if (i == 0) {
           path.moveTo(point.dx, point.dy);
         } else {
           final previousAngle = -math.pi / 2 + (i - 1) * math.pi * 2 / rays;
           final middleAngle = (previousAngle + angle) / 2;
-          final control = Offset(
-            webCenter.dx + math.cos(middleAngle) * radius * .78,
-            webCenter.dy + math.sin(middleAngle) * radius * .78,
-          );
+          final control = Offset(webCenter.dx + math.cos(middleAngle) * radius * .78, webCenter.dy + math.sin(middleAngle) * radius * .78);
           path.quadraticBezierTo(control.dx, control.dy, point.dx, point.dy);
         }
       }
@@ -708,41 +507,11 @@ class _SpiderTreePainter extends CustomPainter {
         canvas.drawPath(partial, webPaint);
       }
     }
-
-    // Tiny spider crawls around the web edge as it is being woven.
-    final angle = -math.pi / 2 + p * math.pi * 2;
-    final spider = Offset(
-      webCenter.dx + math.cos(angle) * webRadius * .78,
-      webCenter.dy + math.sin(angle) * webRadius * .78,
-    );
-    canvas.save();
-    canvas.translate(spider.dx, spider.dy);
-    canvas.rotate(angle + math.pi / 2);
-    final spiderPaint = Paint()
-      ..color = tint
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round;
-    final body = Paint()..color = tint;
-    for (var i = 0; i < 4; i++) {
-      final y = (i - 1.5) * 3.1;
-      for (final side in [-1.0, 1.0]) {
-        final leg = Path()
-          ..moveTo(side * 2, y)
-          ..quadraticBezierTo(side * 7, y - 2, side * 11, y - 6)
-          ..moveTo(side * 2, y)
-          ..quadraticBezierTo(side * 7, y + 2, side * 11, y + 6);
-        canvas.drawPath(leg, spiderPaint);
-      }
-    }
-    canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: 7, height: 11), body);
-    canvas.restore();
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _SpiderTreePainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.shimmer != shimmer;
+  bool shouldRepaint(covariant _SpiderTreePainter oldDelegate) => oldDelegate.progress != progress || oldDelegate.shimmer != shimmer;
 }
 
 class _GlowButton extends StatelessWidget {
@@ -750,35 +519,19 @@ class _GlowButton extends StatelessWidget {
   final Animation<double> shine;
   final String label;
   final VoidCallback onPressed;
-
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: shine,
         builder: (context, _) => Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            gradient: LinearGradient(
-              begin: Alignment(-1 + 2 * shine.value, 0),
-              end: Alignment(1 - 2 * shine.value, 0),
-              colors: const [Color(0xFF6D254B), Color(0xFFE95A9D), Color(0xFF6D254B)],
-            ),
+            gradient: LinearGradient(begin: Alignment(-1 + 2 * shine.value, 0), end: Alignment(1 - 2 * shine.value, 0), colors: const [Color(0xFF6D254B), Color(0xFFE95A9D), Color(0xFF6D254B)]),
             boxShadow: [BoxShadow(color: _pink.withOpacity(.2), blurRadius: 18)],
           ),
           child: FilledButton(
             onPressed: onPressed,
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              child: Text(
-                label,
-                style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: .5),
-              ),
-            ),
+            style: FilledButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+            child: Padding(padding: const EdgeInsets.symmetric(vertical: 13), child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: .5))),
           ),
         ),
       );
