@@ -6,8 +6,8 @@ const _demoPurple = Color(0xFF9B35FF);
 const _demoText = Color(0xFFF2ECFA);
 const _demoMuted = Color(0xFF9A8EAD);
 
-/// Demo-only authentication gate. Account data lives in memory and is lost
-/// when the application process exits; this is intentionally not production auth.
+/// Local-only demo authentication. Credentials are kept in memory and are
+/// lost when the app closes. This is not suitable for real accounts.
 class DemoAuthGate extends StatefulWidget {
   const DemoAuthGate({super.key, required this.appBuilder});
 
@@ -25,8 +25,16 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
   bool _showRegistration = true;
 
   void _registered(String username, String password) {
+    if (_username != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Демо-аккаунт уже создан. Войдите в него.')),
+      );
+      setState(() => _showRegistration = false);
+      return;
+    }
+
     setState(() {
-      _username = username;
+      _username = username.trim();
       _password = password;
       _showRegistration = false;
     });
@@ -54,7 +62,8 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
             ),
             validator: (value) {
               final email = value?.trim() ?? '';
-              if (email.isNotEmpty && !email.contains('@')) {
+              if (email.isNotEmpty &&
+                  (!email.contains('@') || !email.contains('.'))) {
                 return 'Введите корректный адрес';
               }
               return null;
@@ -64,7 +73,7 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, ''),
-            child: const Text('Позже'),
+            child: const Text('Пропустить'),
           ),
           FilledButton(
             onPressed: () {
@@ -79,14 +88,22 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
     );
     controller.dispose();
     if (!mounted) return;
+
+    // Registration does NOT log the user in: return to the login form.
     setState(() {
       _email = linkedEmail?.isNotEmpty == true ? linkedEmail : null;
-      _authorized = true;
+      _authorized = false;
+      _showRegistration = false;
     });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Аккаунт создан. Теперь войдите.')),
+    );
   }
 
   void _login(String username, String password) {
-    if (username.trim() != _username || password != _password) {
+    if (_username == null ||
+        username.trim().toLowerCase() != _username!.toLowerCase() ||
+        password != _password) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Неверный логин или пароль.')),
       );
@@ -95,38 +112,56 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
     setState(() => _authorized = true);
   }
 
-  void _recover(String email) {
-    if (_email == null || email.trim().toLowerCase() != _email!.toLowerCase()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('К этой почте аккаунт не привязан.')),
-      );
-      return;
-    }
-    showDialog<void>(
+  Future<void> _showRecovery() async {
+    final emailController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final email = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: _demoPanel,
-        title: const Text('Демо-восстановление', style: TextStyle(color: _demoText)),
-        content: Text(
-          'Логин: $_username\n\nВ демо-режиме письмо не отправляется. '
-          'Можно задать новый пароль на следующем шаге.',
-          style: const TextStyle(color: _demoText),
+        title: const Text('Восстановление аккаунта', style: TextStyle(color: _demoText)),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: emailController,
+            keyboardType: TextInputType.emailAddress,
+            style: const TextStyle(color: _demoText),
+            decoration: const InputDecoration(labelText: 'Привязанная почта'),
+            validator: (value) {
+              final text = value?.trim() ?? '';
+              return text.contains('@') && text.contains('.')
+                  ? null
+                  : 'Введите корректную почту';
+            },
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Закрыть'),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Отмена'),
           ),
           FilledButton(
             onPressed: () {
-              Navigator.pop(context);
-              _showResetPasswordDialog();
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(dialogContext, emailController.text.trim());
+              }
             },
-            child: const Text('Задать пароль'),
+            child: const Text('Продолжить'),
           ),
         ],
       ),
     );
+    emailController.dispose();
+    if (!mounted || email == null) return;
+
+    if (_email == null || email.toLowerCase() != _email!.toLowerCase()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Аккаунт с такой привязанной почтой не найден.')),
+      );
+      return;
+    }
+
+    await _showResetPasswordDialog();
   }
 
   Future<void> _showResetPasswordDialog() async {
@@ -183,9 +218,13 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
     passwordController.dispose();
     confirmController.dispose();
     if (result != null && mounted) {
-      setState(() => _password = result);
+      setState(() {
+        _password = result;
+        _authorized = false;
+        _showRegistration = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Пароль изменён в демо-аккаунте.')),
+        const SnackBar(content: Text('Пароль изменён. Войдите с новым паролем.')),
       );
     }
   }
@@ -193,6 +232,7 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
   @override
   Widget build(BuildContext context) {
     if (_authorized) return widget.appBuilder(context);
+
     return Scaffold(
       backgroundColor: _demoBg,
       body: SafeArea(
@@ -205,8 +245,10 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
                   ? _RegistrationForm(onRegister: _registered)
                   : _LoginForm(
                       onLogin: _login,
-                      onForgot: () => _showRecovery(context),
-                      onCreateAccount: () => setState(() => _showRegistration = true),
+                      onForgot: _showRecovery,
+                      onCreateAccount: () => setState(() {
+                        _showRegistration = true;
+                      }),
                     ),
             ),
           ),
@@ -214,50 +256,11 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
       ),
     );
   }
-
-  Future<void> _showRecovery(BuildContext context) async {
-    final emailController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    final email = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: _demoPanel,
-        title: const Text('Восстановление аккаунта', style: TextStyle(color: _demoText)),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: emailController,
-            keyboardType: TextInputType.emailAddress,
-            style: const TextStyle(color: _demoText),
-            decoration: const InputDecoration(labelText: 'Привязанная почта'),
-            validator: (value) => (value?.trim().contains('@') ?? false)
-                ? null
-                : 'Введите корректную почту',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Отмена'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(dialogContext, emailController.text.trim());
-              }
-            },
-            child: const Text('Продолжить'),
-          ),
-        ],
-      ),
-    );
-    emailController.dispose();
-    if (email != null && mounted) _recover(email);
-  }
 }
 
 class _RegistrationForm extends StatefulWidget {
   const _RegistrationForm({required this.onRegister});
+
   final void Function(String username, String password) onRegister;
 
   @override
@@ -287,11 +290,17 @@ class _RegistrationFormState extends State<_RegistrationForm> {
           children: [
             const Icon(Icons.shield_rounded, color: _demoPurple, size: 54),
             const SizedBox(height: 16),
-            const Text('Создать аккаунт', textAlign: TextAlign.center,
-                style: TextStyle(color: _demoText, fontSize: 24, fontWeight: FontWeight.w600)),
+            const Text(
+              'Создать аккаунт',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: _demoText, fontSize: 24, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 8),
-            const Text('Придумайте логин и пароль', textAlign: TextAlign.center,
-                style: TextStyle(color: _demoMuted)),
+            const Text(
+              'Придумайте логин и пароль',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: _demoMuted),
+            ),
             const SizedBox(height: 28),
             TextFormField(
               controller: _login,
@@ -339,17 +348,18 @@ class _RegistrationFormState extends State<_RegistrationForm> {
                 child: Text('Зарегистрироваться'),
               ),
             ),
-            TextButton(
-              onPressed: () => Navigator.of(context).maybePop(),
-              child: const Text('Демо: продолжить к входу'),
-            ),
           ],
         ),
       );
 }
 
 class _LoginForm extends StatefulWidget {
-  const _LoginForm({required this.onLogin, required this.onForgot, required this.onCreateAccount});
+  const _LoginForm({
+    required this.onLogin,
+    required this.onForgot,
+    required this.onCreateAccount,
+  });
+
   final void Function(String username, String password) onLogin;
   final VoidCallback onForgot;
   final VoidCallback onCreateAccount;
@@ -378,14 +388,19 @@ class _LoginFormState extends State<_LoginForm> {
           children: [
             const Icon(Icons.shield_rounded, color: _demoPurple, size: 54),
             const SizedBox(height: 16),
-            const Text('Вход в аккаунт', textAlign: TextAlign.center,
-                style: TextStyle(color: _demoText, fontSize: 24, fontWeight: FontWeight.w600)),
+            const Text(
+              'Вход в аккаунт',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: _demoText, fontSize: 24, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 28),
             TextFormField(
               controller: _login,
               style: const TextStyle(color: _demoText),
               decoration: const InputDecoration(labelText: 'Логин'),
-              validator: (value) => (value?.trim().isEmpty ?? true) ? 'Введите логин' : null,
+              validator: (value) => (value?.trim().isEmpty ?? true)
+                  ? 'Введите логин'
+                  : null,
             ),
             const SizedBox(height: 14),
             TextFormField(
@@ -393,14 +408,18 @@ class _LoginFormState extends State<_LoginForm> {
               obscureText: true,
               style: const TextStyle(color: _demoText),
               decoration: const InputDecoration(labelText: 'Пароль'),
-              validator: (value) => (value?.isEmpty ?? true) ? 'Введите пароль' : null,
+              validator: (value) => (value?.isEmpty ?? true)
+                  ? 'Введите пароль'
+                  : null,
             ),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: widget.onForgot,
-                child: const Text('Забыл логин/пароль?',
-                    style: TextStyle(color: _demoMuted, fontSize: 12)),
+                child: const Text(
+                  'Забыл логин/пароль?',
+                  style: TextStyle(color: _demoMuted, fontSize: 12),
+                ),
               ),
             ),
             const SizedBox(height: 12),
