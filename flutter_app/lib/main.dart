@@ -9,23 +9,20 @@ import 'package:window_manager/window_manager.dart';
 
 import 'demo_auth_gate.dart';
 
-const _bg = Color(0xFF05050A);
-const _panel = Color(0xFF100D18);
-const _purple = Color(0xFF9B35FF);
-const _lilac = Color(0xFFC28AFF);
-const _white = Color(0xFFF2ECFA);
-const _muted = Color(0xFF9A8EAD);
-const _successGreen = Color(0xFF4CAF50);
+const _bg = Color(0xFF08060B);
+const _panel = Color(0xFF151019);
+const _purple = Color(0xFFFF4FA3);
+const _lilac = Color(0xFFFFB4D4);
+const _white = Color(0xFFF7F1F7);
+const _muted = Color(0xFFAA9EAE);
+const _successGreen = Color(0xFFFFB4D4);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();
     await windowManager.setBackgroundColor(_bg);
-    await windowManager.setTitleBarStyle(
-      TitleBarStyle.hidden,
-      windowButtonVisibility: false,
-    );
+    await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
     await windowManager.setMinimumSize(const Size(440, 820));
     await windowManager.setSize(const Size(440, 820));
     await windowManager.setAlignment(Alignment.center);
@@ -43,10 +40,7 @@ class SpiderVpnApp extends StatelessWidget {
         theme: ThemeData(
           brightness: Brightness.dark,
           scaffoldBackgroundColor: _bg,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: _purple,
-            brightness: Brightness.dark,
-          ),
+          colorScheme: ColorScheme.fromSeed(seedColor: _purple, brightness: Brightness.dark),
           useMaterial3: true,
         ),
         home: DemoAuthGate(appBuilder: (_) => const AppShell()),
@@ -55,7 +49,6 @@ class SpiderVpnApp extends StatelessWidget {
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
-
   @override
   State<AppShell> createState() => _AppShellState();
 }
@@ -76,25 +69,18 @@ class _AppShellState extends State<AppShell> {
   }
 
   bool _isFunctionalArea(Offset point) =>
-      _containsPoint(_closeKey, point) ||
-      _containsPoint(_serverKey, point) ||
-      _containsPoint(_powerKey, point) ||
-      _containsPoint(_navKey, point);
+      _containsPoint(_closeKey, point) || _containsPoint(_serverKey, point) ||
+      _containsPoint(_powerKey, point) || _containsPoint(_navKey, point);
 
   void _onPointerDown(PointerDownEvent event) {
     if (!Platform.isWindows || event.kind != PointerDeviceKind.mouse) return;
     if ((event.buttons & kPrimaryMouseButton) == 0) return;
     _pointerStartPositions[event.pointer] = event.position;
-    if (!_isFunctionalArea(event.position)) {
-      _draggablePointers.add(event.pointer);
-    }
+    if (!_isFunctionalArea(event.position)) _draggablePointers.add(event.pointer);
   }
 
   void _onPointerMove(PointerMoveEvent event) {
-    if (!_draggablePointers.contains(event.pointer) ||
-        (event.buttons & kPrimaryMouseButton) == 0) {
-      return;
-    }
+    if (!_draggablePointers.contains(event.pointer) || (event.buttons & kPrimaryMouseButton) == 0) return;
     final start = _pointerStartPositions[event.pointer];
     if (start == null || (event.position - start).distance < 5) return;
     _draggablePointers.remove(event.pointer);
@@ -141,10 +127,7 @@ class _AppShellState extends State<AppShell> {
                           child: IndexedStack(
                             index: _tab,
                             children: [
-                              HomeScreen(
-                                serverKey: _serverKey,
-                                powerKey: _powerKey,
-                              ),
+                              HomeScreen(serverKey: _serverKey, powerKey: _powerKey),
                               const ProfileScreen(),
                             ],
                           ),
@@ -184,14 +167,7 @@ class _AppHeader extends StatelessWidget {
             const Spacer(),
             const _SpiderLogo(size: 23),
             const SizedBox(width: 8),
-            const Text(
-              'Spider VPN',
-              style: TextStyle(
-                color: _white,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            const Text('Spider VPN', style: TextStyle(color: _white, fontSize: 20, fontWeight: FontWeight.w600)),
             const Spacer(),
             const SizedBox(width: 48),
           ],
@@ -202,13 +178,8 @@ class _AppHeader extends StatelessWidget {
 class _SpiderLogo extends StatelessWidget {
   const _SpiderLogo({required this.size});
   final double size;
-
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: size,
-        height: size,
-        child: CustomPaint(painter: _SpiderLogoPainter()),
-      );
+  Widget build(BuildContext context) => SizedBox(width: size, height: size, child: CustomPaint(painter: _SpiderLogoPainter()));
 }
 
 class _SpiderLogoPainter extends CustomPainter {
@@ -217,11 +188,7 @@ class _SpiderLogoPainter extends CustomPainter {
     final scale = size.width / 24;
     canvas.save();
     canvas.scale(scale);
-    final stroke = Paint()
-      ..color = _purple
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
-      ..strokeCap = StrokeCap.round;
+    final stroke = Paint()..color = _purple..style = PaintingStyle.stroke..strokeWidth = 1.8..strokeCap = StrokeCap.round;
     final fill = Paint()..color = _purple;
     for (var i = 0; i < 4; i++) {
       final y = 7.0 + i * 3.2;
@@ -235,14 +202,10 @@ class _SpiderLogoPainter extends CustomPainter {
         canvas.drawPath(leg, stroke);
       }
     }
-    canvas.drawOval(
-      Rect.fromCenter(center: const Offset(12, 12), width: 5.5, height: 8),
-      fill,
-    );
+    canvas.drawOval(Rect.fromCenter(center: const Offset(12, 12), width: 5.5, height: 8), fill);
     canvas.drawCircle(const Offset(12, 6.5), 2.4, fill);
     canvas.restore();
   }
-
   @override
   bool shouldRepaint(covariant _SpiderLogoPainter oldDelegate) => false;
 }
@@ -266,7 +229,6 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.serverKey, required this.powerKey});
   final GlobalKey serverKey;
   final GlobalKey powerKey;
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -284,14 +246,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _weave = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 3200),
-    )..addStatusListener(_onWeaveStatus);
-    _blink = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
+    _weave = AnimationController(vsync: this, duration: const Duration(milliseconds: 3200))..addStatusListener(_onWeaveStatus);
+    _blink = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
     _statusColor = TweenSequence<Color?>([
       TweenSequenceItem(tween: ColorTween(begin: _white, end: _successGreen), weight: 20),
       TweenSequenceItem(tween: ColorTween(begin: _successGreen, end: _white), weight: 20),
@@ -303,16 +259,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _onWeaveStatus(AnimationStatus status) {
     if (status != AnimationStatus.completed || !mounted || !_connecting) return;
-    setState(() {
-      _connecting = false;
-      _connected = true;
-    });
+    setState(() { _connecting = false; _connected = true; });
     _blink.forward(from: 0);
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && _connected) {
-        setState(() => _uptime += const Duration(seconds: 1));
-      }
+      if (mounted && _connected) setState(() => _uptime += const Duration(seconds: 1));
     });
   }
 
@@ -321,29 +272,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       context: context,
       backgroundColor: _panel,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) => SafeArea(
         child: SizedBox(
           height: MediaQuery.sizeOf(context).height * .62,
           child: Column(
             children: [
               const SizedBox(height: 12),
-              Container(
-                width: 38,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: _muted,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
+              Container(width: 38, height: 4, decoration: BoxDecoration(color: _muted, borderRadius: BorderRadius.circular(4))),
               const Padding(
                 padding: EdgeInsets.fromLTRB(20, 20, 20, 14),
-                child: Text(
-                  'Выберите страну',
-                  style: TextStyle(color: _white, fontSize: 20, fontWeight: FontWeight.w600),
-                ),
+                child: Text('Выберите страну', style: TextStyle(color: _white, fontSize: 20, fontWeight: FontWeight.w600)),
               ),
               Expanded(
                 child: ListView.separated(
@@ -354,19 +293,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     final server = _servers[index];
                     final isSelected = server.country == _server.country;
                     return Material(
-                      color: isSelected ? _purple.withOpacity(.18) : const Color(0xFF1A1720),
+                      color: isSelected ? _purple.withOpacity(.18) : const Color(0xFF21131B),
                       borderRadius: BorderRadius.circular(16),
                       child: ListTile(
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(color: isSelected ? _purple : const Color(0xFF2A2532)),
+                          side: BorderSide(color: isSelected ? _purple : const Color(0xFF4A2035)),
                         ),
                         leading: Text(server.flag, style: const TextStyle(fontSize: 28)),
                         title: Text(server.country, style: const TextStyle(color: _white, fontWeight: FontWeight.w600)),
                         subtitle: Text(server.city, style: const TextStyle(color: _muted)),
-                        trailing: isSelected
-                            ? const Icon(Icons.check_circle_rounded, color: _lilac)
-                            : const Icon(Icons.chevron_right_rounded, color: _muted),
+                        trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: _lilac) : const Icon(Icons.chevron_right_rounded, color: _muted),
                         onTap: () => Navigator.pop(context, server),
                       ),
                     );
@@ -395,10 +332,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (_connected) {
       _timer?.cancel();
       _blink.reset();
-      setState(() {
-        _connected = false;
-        _uptime = Duration.zero;
-      });
+      setState(() { _connected = false; _uptime = Duration.zero; });
       _weave.reverse();
       return;
     }
@@ -423,13 +357,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) => Column(
         children: [
           const SizedBox(height: 26),
-          _ServerCard(
-            key: widget.serverKey,
-            server: _server,
-            connected: _connected,
-            connecting: _connecting,
-            onTap: _chooseServer,
-          ),
+          _ServerCard(key: widget.serverKey, server: _server, connected: _connected, connecting: _connecting, onTap: _chooseServer),
           const Spacer(flex: 2),
           SizedBox(
             width: 320,
@@ -440,20 +368,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 Positioned.fill(
                   child: AnimatedBuilder(
                     animation: _weave,
-                    builder: (context, _) => CustomPaint(
-                      painter: WeavingSpiderPainter(
-                        progress: _connected ? 1 : _weave.value,
-                        showSpider: _connecting,
-                      ),
-                    ),
+                    builder: (context, _) => CustomPaint(painter: WeavingSpiderPainter(progress: _connected ? 1 : _weave.value, showSpider: _connecting)),
                   ),
                 ),
-                _PowerButton(
-                  key: widget.powerKey,
-                  connecting: _connecting,
-                  connected: _connected,
-                  onTap: _toggleVpn,
-                ),
+                _PowerButton(key: widget.powerKey, connecting: _connecting, connected: _connected, onTap: _toggleVpn),
               ],
             ),
           ),
@@ -465,11 +383,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               animation: _blink,
               builder: (context, _) => Text(
                 _connecting ? 'Подключение…' : (_connected ? 'Подключено' : 'Не подключено'),
-                style: TextStyle(
-                  color: _connected ? (_statusColor.value ?? _white) : _white,
-                  fontSize: 21,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: TextStyle(color: _connected ? (_statusColor.value ?? _white) : _white, fontSize: 21, fontWeight: FontWeight.w500),
               ),
             ),
           ),
@@ -477,15 +391,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           AnimatedSize(
             duration: const Duration(milliseconds: 250),
             child: _connected
-                ? Text(
-                    _time,
-                    style: const TextStyle(color: _lilac, fontSize: 19, letterSpacing: 2.2, fontWeight: FontWeight.w500),
-                  )
-                : Text(
-                    _connecting ? 'Паучок плетёт защищённый маршрут' : 'Нажмите кнопку для подключения',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: _muted, fontSize: 13),
-                  ),
+                ? Text(_time, style: const TextStyle(color: _lilac, fontSize: 21, letterSpacing: 3, fontWeight: FontWeight.w600))
+                : Text(_connecting ? 'Паучок плетёт защищённый маршрут' : 'Нажмите кнопку для подключения', textAlign: TextAlign.center, style: const TextStyle(color: _muted, fontSize: 13)),
           ),
           const Spacer(flex: 2),
         ],
@@ -501,7 +408,7 @@ class _ServerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: const Color(0xFF15121B),
+        color: const Color(0xFF151019),
         borderRadius: BorderRadius.circular(18),
         child: InkWell(
           onTap: onTap,
@@ -510,10 +417,7 @@ class _ServerCard extends StatelessWidget {
             width: double.infinity,
             constraints: const BoxConstraints(minHeight: 64),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: _purple.withOpacity(.8)),
-            ),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: _purple.withOpacity(.8))),
             child: Row(
               children: [
                 const Icon(Icons.bolt_rounded, color: _lilac, size: 24),
@@ -527,10 +431,7 @@ class _ServerCard extends StatelessWidget {
                     children: [
                       Text('${server.country} · ${server.city}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _white, fontSize: 14, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 2),
-                      Text(
-                        connecting ? 'Подключение к серверу…' : connected ? 'Подключено' : 'Нажмите, чтобы выбрать сервер',
-                        style: const TextStyle(color: _muted, fontSize: 12),
-                      ),
+                      Text(connecting ? 'Подключение к серверу…' : connected ? 'Подключено' : 'Нажмите, чтобы выбрать сервер', style: const TextStyle(color: _muted, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -556,19 +457,9 @@ class _PowerButton extends StatelessWidget {
         height: 160,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: connected || connecting
-                ? const [Color(0xFF32104D), Color(0xFF09070E)]
-                : const [Color(0xFF1E1030), Color(0xFF09070E)],
-          ),
+          gradient: RadialGradient(colors: connected || connecting ? const [Color(0xFF4A1730), Color(0xFF0D0910)] : const [Color(0xFF28121E), Color(0xFF0D0910)]),
           border: Border.all(color: connected || connecting ? _lilac : _purple, width: connected || connecting ? 3.5 : 2.5),
-          boxShadow: [
-            BoxShadow(
-              color: _purple.withOpacity(connected ? .72 : (connecting ? .55 : .22)),
-              blurRadius: connected ? 42 : (connecting ? 34 : 20),
-              spreadRadius: connected ? 8 : (connecting ? 5 : 1),
-            ),
-          ],
+          boxShadow: [BoxShadow(color: _purple.withOpacity(connected ? .72 : (connecting ? .55 : .22)), blurRadius: connected ? 42 : (connecting ? 34 : 20), spreadRadius: connected ? 8 : (connecting ? 5 : 1))],
         ),
         child: Material(
           color: Colors.transparent,
@@ -580,12 +471,7 @@ class _PowerButton extends StatelessWidget {
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 220),
                 child: connecting
-                    ? const SizedBox(
-                        key: ValueKey('loading'),
-                        width: 38,
-                        height: 38,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: _lilac),
-                      )
+                    ? const SizedBox(key: ValueKey('loading'), width: 38, height: 38, child: CircularProgressIndicator(strokeWidth: 2, color: _lilac))
                     : Icon(Icons.power_settings_new_rounded, key: ValueKey(connected), size: 38, color: connected ? Colors.white : _white),
               ),
             ),
@@ -606,18 +492,8 @@ class WeavingSpiderPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = math.min(size.width, size.height) * .46;
     final p = progress.clamp(0.0, 1.0).toDouble();
-    final thread = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.05
-      ..strokeCap = StrokeCap.round
-      ..color = _lilac.withOpacity(.58);
-    final glow = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round
-      ..color = _purple.withOpacity(.10)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-
+    final thread = Paint()..style = PaintingStyle.stroke..strokeWidth = 1.05..strokeCap = StrokeCap.round..color = _lilac.withOpacity(.7);
+    final glow = Paint()..style = PaintingStyle.stroke..strokeWidth = 3..strokeCap = StrokeCap.round..color = _purple.withOpacity(.14)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
     final spokeProgress = (p / .52).clamp(0.0, 1.0).toDouble();
     for (var i = 0; i < _spokes; i++) {
       final angle = -math.pi / 2 + math.pi * 2 * i / _spokes;
@@ -626,7 +502,6 @@ class WeavingSpiderPainter extends CustomPainter {
       canvas.drawPath(path, glow);
       canvas.drawPath(path, thread);
     }
-
     final ringProgress = ((p - .34) / .66).clamp(0.0, 1.0).toDouble();
     for (var ring = 1; ring <= _rings; ring++) {
       final reveal = (ringProgress * _rings - (ring - 1)).clamp(0.0, 1.0).toDouble();
@@ -651,16 +526,14 @@ class WeavingSpiderPainter extends CustomPainter {
       canvas.drawPath(part, glow);
       canvas.drawPath(part, thread);
     }
-
     if (p > .9) {
       final alpha = ((p - .9) / .1).clamp(0.0, 1.0).toDouble();
-      final bead = Paint()..color = _lilac.withOpacity(.55 * alpha);
+      final bead = Paint()..color = _lilac.withOpacity(.7 * alpha);
       for (var i = 0; i < _spokes; i++) {
         final angle = -math.pi / 2 + math.pi * 2 * i / _spokes;
         canvas.drawCircle(Offset(center.dx + math.cos(angle) * radius, center.dy + math.sin(angle) * radius), 1.5, bead);
       }
     }
-
     if (showSpider && p < 1) {
       final angle = -math.pi / 2 + math.pi * 2 * p;
       final spider = Offset(center.dx + math.cos(angle) * radius * .84, center.dy + math.sin(angle) * radius * .84);
@@ -672,11 +545,7 @@ class WeavingSpiderPainter extends CustomPainter {
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(rotation);
-    final legs = Paint()
-      ..color = _lilac
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.7
-      ..strokeCap = StrokeCap.round;
+    final legs = Paint()..color = _lilac..style = PaintingStyle.stroke..strokeWidth = 1.7..strokeCap = StrokeCap.round;
     final body = Paint()..color = _purple;
     for (var i = 0; i < 4; i++) {
       final y = (i - 1.5) * 3.2;
@@ -698,13 +567,11 @@ class WeavingSpiderPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant WeavingSpiderPainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.showSpider != showSpider;
+  bool shouldRepaint(covariant WeavingSpiderPainter oldDelegate) => oldDelegate.progress != progress || oldDelegate.showSpider != showSpider;
 }
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
-
   @override
   Widget build(BuildContext context) => Column(
         children: [
@@ -749,7 +616,6 @@ class _InfoCard extends StatelessWidget {
   final String title;
   final String? subtitle;
   final bool outlined;
-
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
@@ -758,7 +624,7 @@ class _InfoCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: outlined ? Colors.transparent : _panel,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: outlined ? _purple.withOpacity(.8) : const Color(0xFF211A2D)),
+          border: Border.all(color: outlined ? _purple.withOpacity(.8) : const Color(0xFF35202B)),
         ),
         child: Row(
           children: [
@@ -788,12 +654,11 @@ class _BottomNav extends StatelessWidget {
   final GlobalKey navKey;
   final int selected;
   final ValueChanged<int> onSelect;
-
   @override
   Widget build(BuildContext context) => Container(
         key: navKey,
         padding: const EdgeInsets.only(top: 7, bottom: 3),
-        decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFF21172E)))),
+        decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFF35202B)))),
         child: Row(
           children: [
             Expanded(child: _NavItem(icon: Icons.home_rounded, label: 'Главная', active: selected == 0, onTap: () => onSelect(0))),
@@ -809,7 +674,6 @@ class _NavItem extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     final color = active ? _lilac : _muted;
