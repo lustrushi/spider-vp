@@ -7,12 +7,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'demo_auth_gate.dart';
+
 const _bg = Color(0xFF05050A);
 const _panel = Color(0xFF100D18);
 const _purple = Color(0xFF9B35FF);
 const _lilac = Color(0xFFC28AFF);
 const _white = Color(0xFFF2ECFA);
 const _muted = Color(0xFF9A8EAD);
+const _successGreen = Color(0xFF4CAF50);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,7 +49,7 @@ class SpiderVpnApp extends StatelessWidget {
           ),
           useMaterial3: true,
         ),
-        home: const AppShell(),
+        home: DemoAuthGate(appBuilder: (_) => const AppShell()),
       );
 }
 
@@ -111,6 +114,14 @@ class _AppShellState extends State<AppShell> {
     SystemNavigator.pop();
   }
 
+  void _openLogin() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const LoginScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Listener(
         onPointerDown: _onPointerDown,
@@ -145,7 +156,7 @@ class _AppShellState extends State<AppShell> {
                                 serverKey: _serverKey,
                                 powerKey: _powerKey,
                               ),
-                              const ProfileScreen(),
+                              ProfileScreen(onLogin: _openLogin),
                             ],
                           ),
                         ),
@@ -202,6 +213,7 @@ class _AppHeader extends StatelessWidget {
 
 class _SpiderLogo extends StatelessWidget {
   const _SpiderLogo({required this.size});
+
   final double size;
 
   @override
@@ -218,6 +230,7 @@ class _SpiderLogoPainter extends CustomPainter {
     final scale = size.width / 24;
     canvas.save();
     canvas.scale(scale);
+
     final stroke = Paint()
       ..color = _purple
       ..style = PaintingStyle.stroke
@@ -237,6 +250,7 @@ class _SpiderLogoPainter extends CustomPainter {
         canvas.drawPath(leg, stroke);
       }
     }
+
     canvas.drawOval(
       Rect.fromCenter(center: const Offset(12, 12), width: 5.5, height: 8),
       fill,
@@ -250,7 +264,12 @@ class _SpiderLogoPainter extends CustomPainter {
 }
 
 class VpnServer {
-  const VpnServer({required this.country, required this.flag, required this.city});
+  const VpnServer({
+    required this.country,
+    required this.flag,
+    required this.city,
+  });
+
   final String country;
   final String flag;
   final String city;
@@ -279,8 +298,11 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _weave;
+  late final AnimationController _statusBlink;
+  late final Animation<Color?> _statusColor;
+
   VpnServer _server = _servers.first;
   bool _connecting = false;
   bool _connected = false;
@@ -290,18 +312,50 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+
     _weave = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3200),
     )..addStatusListener(_onWeaveStatus);
+
+    _statusBlink = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _statusColor = TweenSequence<Color?>([
+      TweenSequenceItem(
+        tween: ColorTween(begin: _white, end: _successGreen),
+        weight: 20,
+      ),
+      TweenSequenceItem(
+        tween: ColorTween(begin: _successGreen, end: _white),
+        weight: 20,
+      ),
+      TweenSequenceItem(
+        tween: ColorTween(begin: _white, end: _successGreen),
+        weight: 20,
+      ),
+      TweenSequenceItem(
+        tween: ColorTween(begin: _successGreen, end: _white),
+        weight: 20,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<Color?>(_white),
+        weight: 20,
+      ),
+    ]).animate(_statusBlink);
   }
 
   void _onWeaveStatus(AnimationStatus status) {
     if (status != AnimationStatus.completed || !mounted || !_connecting) return;
+
     setState(() {
       _connecting = false;
       _connected = true;
     });
+
+    _statusBlink.forward(from: 0);
+
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted && _connected) {
@@ -351,6 +405,7 @@ class _HomeScreenState extends State<HomeScreen>
                   itemBuilder: (context, index) {
                     final server = _servers[index];
                     final isSelected = server.country == _server.country;
+
                     return Material(
                       color: isSelected
                           ? _purple.withOpacity(.18)
@@ -360,18 +415,35 @@ class _HomeScreenState extends State<HomeScreen>
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                           side: BorderSide(
-                            color: isSelected ? _purple : const Color(0xFF2A2532),
+                            color: isSelected
+                                ? _purple
+                                : const Color(0xFF2A2532),
                           ),
                         ),
-                        leading: Text(server.flag, style: const TextStyle(fontSize: 28)),
+                        leading: Text(
+                          server.flag,
+                          style: const TextStyle(fontSize: 28),
+                        ),
                         title: Text(
                           server.country,
-                          style: const TextStyle(color: _white, fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            color: _white,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                        subtitle: Text(server.city, style: const TextStyle(color: _muted)),
+                        subtitle: Text(
+                          server.city,
+                          style: const TextStyle(color: _muted),
+                        ),
                         trailing: isSelected
-                            ? const Icon(Icons.check_circle_rounded, color: _lilac)
-                            : const Icon(Icons.chevron_right_rounded, color: _muted),
+                            ? const Icon(
+                                Icons.check_circle_rounded,
+                                color: _lilac,
+                              )
+                            : const Icon(
+                                Icons.chevron_right_rounded,
+                                color: _muted,
+                              ),
                         onTap: () => Navigator.pop(context, server),
                       ),
                     );
@@ -385,20 +457,25 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     if (!mounted || selected == null) return;
+
     _timer?.cancel();
+    _statusBlink.reset();
     setState(() {
       _server = selected;
       _uptime = Duration.zero;
       _connected = false;
       _connecting = true;
     });
+
     _weave.forward(from: 0);
   }
 
   void _toggleVpn() {
     if (_connecting) return;
+
     if (_connected) {
       _timer?.cancel();
+      _statusBlink.reset();
       setState(() {
         _connected = false;
         _uptime = Duration.zero;
@@ -406,6 +483,7 @@ class _HomeScreenState extends State<HomeScreen>
       _weave.reverse();
       return;
     }
+
     setState(() => _connecting = true);
     _weave.forward(from: 0);
   }
@@ -414,6 +492,7 @@ class _HomeScreenState extends State<HomeScreen>
   void dispose() {
     _timer?.cancel();
     _weave.dispose();
+    _statusBlink.dispose();
     super.dispose();
   }
 
@@ -465,15 +544,18 @@ class _HomeScreenState extends State<HomeScreen>
           const SizedBox(height: 8),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 250),
-            child: Text(
-              _connecting
-                  ? 'Подключение…'
-                  : (_connected ? 'Подключено' : 'Не подключено'),
+            child: AnimatedBuilder(
               key: ValueKey('$_connecting-$_connected'),
-              style: const TextStyle(
-                color: _white,
-                fontSize: 21,
-                fontWeight: FontWeight.w500,
+              animation: _statusBlink,
+              builder: (context, _) => Text(
+                _connecting
+                    ? 'Подключение…'
+                    : (_connected ? 'Подключено' : 'Не подключено'),
+                style: TextStyle(
+                  color: _connected ? (_statusColor.value ?? _white) : _white,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ),
@@ -565,7 +647,11 @@ class _ServerCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: _lilac, size: 25),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: _lilac,
+                  size: 25,
+                ),
               ],
             ),
           ),
@@ -604,7 +690,9 @@ class _PowerButton extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: _purple.withOpacity(connected ? .72 : (connecting ? .55 : .22)),
+              color: _purple.withOpacity(
+                connected ? .72 : (connecting ? .55 : .22),
+              ),
               blurRadius: connected ? 42 : (connecting ? 34 : 20),
               spreadRadius: connected ? 8 : (connecting ? 5 : 1),
             ),
@@ -624,7 +712,10 @@ class _PowerButton extends StatelessWidget {
                         key: ValueKey('loading'),
                         width: 38,
                         height: 38,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: _lilac),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _lilac,
+                        ),
                       )
                     : Icon(
                         Icons.power_settings_new_rounded,
@@ -640,7 +731,10 @@ class _PowerButton extends StatelessWidget {
 }
 
 class WeavingSpiderPainter extends CustomPainter {
-  const WeavingSpiderPainter({required this.progress, required this.showSpider});
+  const WeavingSpiderPainter({
+    required this.progress,
+    required this.showSpider,
+  });
 
   final double progress;
   final bool showSpider;
@@ -653,11 +747,13 @@ class WeavingSpiderPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = math.min(size.width, size.height) * .46;
     final p = progress.clamp(0.0, 1.0).toDouble();
+
     final thread = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.05
       ..strokeCap = StrokeCap.round
       ..color = _lilac.withOpacity(.58);
+
     final glow = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
@@ -672,36 +768,51 @@ class WeavingSpiderPainter extends CustomPainter {
         center.dx + math.cos(angle) * radius * spokeProgress,
         center.dy + math.sin(angle) * radius * spokeProgress,
       );
-      final path = Path()..moveTo(center.dx, center.dy)..lineTo(end.dx, end.dy);
+      final path = Path()
+        ..moveTo(center.dx, center.dy)
+        ..lineTo(end.dx, end.dy);
       canvas.drawPath(path, glow);
       canvas.drawPath(path, thread);
     }
 
     final ringProgress = ((p - .34) / .66).clamp(0.0, 1.0).toDouble();
     for (var ring = 1; ring <= _rings; ring++) {
-      final reveal = (ringProgress * _rings - (ring - 1)).clamp(0.0, 1.0).toDouble();
+      final reveal =
+          (ringProgress * _rings - (ring - 1)).clamp(0.0, 1.0).toDouble();
       if (reveal <= 0) continue;
+
       final r = radius * ring / _rings;
       final path = Path();
+
       for (var i = 0; i <= _spokes; i++) {
         final angle = -math.pi / 2 + math.pi * 2 * i / _spokes;
-        final point = Offset(center.dx + math.cos(angle) * r, center.dy + math.sin(angle) * r);
+        final point = Offset(
+          center.dx + math.cos(angle) * r,
+          center.dy + math.sin(angle) * r,
+        );
+
         if (i == 0) {
           path.moveTo(point.dx, point.dy);
           continue;
         }
+
         final previousAngle = -math.pi / 2 + math.pi * 2 * (i - 1) / _spokes;
-        final previous = Offset(center.dx + math.cos(previousAngle) * r, center.dy + math.sin(previousAngle) * r);
         final middleAngle = (previousAngle + angle) / 2;
         final control = Offset(
           center.dx + math.cos(middleAngle) * r * .91,
           center.dy + math.sin(middleAngle) * r * .91,
         );
+
         path.quadraticBezierTo(control.dx, control.dy, point.dx, point.dy);
       }
+
       final metrics = path.computeMetrics().toList();
       if (metrics.isEmpty) continue;
-      final part = metrics.first.extractPath(0, metrics.first.length * reveal);
+
+      final part = metrics.first.extractPath(
+        0,
+        metrics.first.length * reveal,
+      );
       canvas.drawPath(part, glow);
       canvas.drawPath(part, thread);
     }
@@ -709,10 +820,14 @@ class WeavingSpiderPainter extends CustomPainter {
     if (p > .9) {
       final alpha = ((p - .9) / .1).clamp(0.0, 1.0).toDouble();
       final bead = Paint()..color = _lilac.withOpacity(.55 * alpha);
+
       for (var i = 0; i < _spokes; i++) {
         final angle = -math.pi / 2 + math.pi * 2 * i / _spokes;
         canvas.drawCircle(
-          Offset(center.dx + math.cos(angle) * radius, center.dy + math.sin(angle) * radius),
+          Offset(
+            center.dx + math.cos(angle) * radius,
+            center.dy + math.sin(angle) * radius,
+          ),
           1.5,
           bead,
         );
@@ -733,6 +848,7 @@ class WeavingSpiderPainter extends CustomPainter {
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(rotation);
+
     final legs = Paint()
       ..color = _lilac
       ..style = PaintingStyle.stroke
@@ -743,6 +859,7 @@ class WeavingSpiderPainter extends CustomPainter {
     for (var i = 0; i < 4; i++) {
       final y = (i - 1.5) * 3.2;
       final reach = 10.0 + (i.isOdd ? 2 : 0);
+
       for (final side in [-1.0, 1.0]) {
         final leg = Path()
           ..moveTo(side * 2.2, y)
@@ -755,18 +872,28 @@ class WeavingSpiderPainter extends CustomPainter {
       }
     }
 
-    canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: 7, height: 11), body);
-    canvas.drawCircle(const Offset(0, -7), 3.2, Paint()..color = _lilac);
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset.zero, width: 7, height: 11),
+      body,
+    );
+    canvas.drawCircle(
+      const Offset(0, -7),
+      3.2,
+      Paint()..color = _lilac,
+    );
     canvas.restore();
   }
 
   @override
   bool shouldRepaint(covariant WeavingSpiderPainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.showSpider != showSpider;
+      oldDelegate.progress != progress ||
+      oldDelegate.showSpider != showSpider;
 }
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, required this.onLogin});
+
+  final VoidCallback onLogin;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -774,9 +901,22 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 16),
           const Text(
             'Профиль',
-            style: TextStyle(color: _white, fontSize: 22, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: _white,
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onLogin,
+              icon: const Icon(Icons.login_rounded),
+              label: const Text('Войти в аккаунт'),
+            ),
+          ),
+          const SizedBox(height: 16),
           Expanded(
             child: ListView(
               physics: const BouncingScrollPhysics(),
@@ -790,31 +930,244 @@ class ProfileScreen extends StatelessWidget {
                 Center(
                   child: Text(
                     'Spider VPN',
-                    style: TextStyle(color: _white, fontSize: 24, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: _white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 SizedBox(height: 5),
-                Center(child: Text('Твой безопасный интернет', style: TextStyle(color: _muted, fontSize: 15))),
+                Center(
+                  child: Text(
+                    'Твой безопасный интернет',
+                    style: TextStyle(color: _muted, fontSize: 15),
+                  ),
+                ),
                 SizedBox(height: 22),
-                _InfoCard(icon: Icons.workspace_premium_rounded, title: 'Подписка', subtitle: 'Управление подпиской', outlined: true),
+                _InfoCard(
+                  icon: Icons.workspace_premium_rounded,
+                  title: 'Подписка',
+                  subtitle: 'Управление подпиской',
+                  outlined: true,
+                ),
                 SizedBox(height: 22),
-                Text('Полезные ссылки', style: TextStyle(color: _muted, fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(
+                  'Полезные ссылки',
+                  style: TextStyle(
+                    color: _muted,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 SizedBox(height: 10),
-                _InfoCard(icon: Icons.language_rounded, title: 'Официальный сайт', subtitle: 'spidervpn.com'),
+                _InfoCard(
+                  icon: Icons.language_rounded,
+                  title: 'Официальный сайт',
+                  subtitle: 'spidervpn.com',
+                ),
                 SizedBox(height: 9),
-                _InfoCard(icon: Icons.send_rounded, title: 'Telegram канал', subtitle: 't.me/spidervpn'),
+                _InfoCard(
+                  icon: Icons.send_rounded,
+                  title: 'Telegram канал',
+                  subtitle: 't.me/spidervpn',
+                ),
                 SizedBox(height: 20),
-                Text('Управление', style: TextStyle(color: _muted, fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(
+                  'Управление',
+                  style: TextStyle(
+                    color: _muted,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 SizedBox(height: 10),
-                _InfoCard(icon: Icons.add_to_home_screen_rounded, title: 'Добавить устройство', subtitle: 'До 10 устройств'),
+                _InfoCard(
+                  icon: Icons.add_to_home_screen_rounded,
+                  title: 'Добавить устройство',
+                  subtitle: 'До 10 устройств',
+                ),
                 SizedBox(height: 9),
-                _InfoCard(icon: Icons.headset_mic_rounded, title: 'Обратиться в поддержку'),
+                _InfoCard(
+                  icon: Icons.headset_mic_rounded,
+                  title: 'Обратиться в поддержку',
+                ),
                 SizedBox(height: 14),
-                _InfoCard(icon: Icons.logout_rounded, title: 'Выйти из аккаунта', outlined: true),
+                _InfoCard(
+                  icon: Icons.logout_rounded,
+                  title: 'Выйти из аккаунта',
+                  outlined: true,
+                ),
               ],
             ),
           ),
         ],
+      );
+}
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _hidePassword = true;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Форма проверена. Сервер авторизации ещё не подключён.',
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _decoration(String label, {Widget? suffixIcon}) =>
+      InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: _muted),
+        filled: true,
+        fillColor: _panel,
+        suffixIcon: suffixIcon,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFF211A2D)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: _purple),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Colors.redAccent),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Colors.redAccent),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: _bg,
+        appBar: AppBar(
+          backgroundColor: _bg,
+          foregroundColor: _white,
+          title: const Text('Вход в аккаунт'),
+        ),
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Center(child: _SpiderLogo(size: 56)),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Spider VPN',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Войдите, чтобы продолжить',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: _muted),
+                    ),
+                    const SizedBox(height: 28),
+                    TextFormField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                      style: const TextStyle(color: _white),
+                      decoration: _decoration('Электронная почта'),
+                      validator: (value) {
+                        final email = value?.trim() ?? '';
+                        if (email.isEmpty || !email.contains('@')) {
+                          return 'Введите корректную электронную почту';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: _hidePassword,
+                      autofillHints: const [AutofillHints.password],
+                      style: const TextStyle(color: _white),
+                      decoration: _decoration(
+                        'Пароль',
+                        suffixIcon: IconButton(
+                          tooltip: _hidePassword
+                              ? 'Показать пароль'
+                              : 'Скрыть пароль',
+                          onPressed: () {
+                            setState(() => _hidePassword = !_hidePassword);
+                          },
+                          icon: Icon(
+                            _hidePassword
+                                ? Icons.visibility_rounded
+                                : Icons.visibility_off_rounded,
+                            color: _muted,
+                          ),
+                        ),
+                      ),
+                      validator: (value) {
+                        if ((value ?? '').length < 6) {
+                          return 'Пароль должен содержать не менее 6 символов';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: _submit,
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                        child: Text('Войти'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Восстановление пароля пока не подключено.',
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text('Забыли пароль?'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       );
 }
 
@@ -852,15 +1205,29 @@ class _InfoCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(title, style: const TextStyle(color: _white, fontSize: 15, fontWeight: FontWeight.w500)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: _white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 3),
-                    Text(subtitle!, style: const TextStyle(color: _muted, fontSize: 13)),
+                    Text(
+                      subtitle!,
+                      style: const TextStyle(color: _muted, fontSize: 13),
+                    ),
                   ],
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: _lilac, size: 25),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: _lilac,
+              size: 25,
+            ),
           ],
         ),
       );
@@ -923,6 +1290,7 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = active ? _lilac : _muted;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
