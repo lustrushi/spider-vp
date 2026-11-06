@@ -24,36 +24,30 @@ jobs:
         working-directory: flutter_app
         run: flutter create --platforms=windows .
 
-      - name: Match native window background and fixed size to Flutter UI
+      - name: Configure frameless window with transparent native background
         working-directory: flutter_app
         shell: pwsh
         run: |
-          $width = 430
-          $height = 820
-
           $mainPath = "windows/runner/main.cpp"
           $main = Get-Content $mainPath -Raw
 
           $main = [regex]::Replace(
             $main,
             'Win32Window::Point origin\([^;]*\);',
-            "Win32Window::Point origin((GetSystemMetrics(SM_CXSCREEN) - $width) / 2, (GetSystemMetrics(SM_CYSCREEN) - $height) / 2);"
+            'Win32Window::Point origin((GetSystemMetrics(SM_CXSCREEN) - 440) / 2, (GetSystemMetrics(SM_CYSCREEN) - 820) / 2);'
           )
           $main = [regex]::Replace(
             $main,
             'Win32Window::Size size\([^;]*\);',
-            "Win32Window::Size size($width, $height);"
+            'Win32Window::Size size(440, 820);'
           )
-
-          if ($main -notmatch "Win32Window::Size size\($width, $height\);") {
+          if ($main -notmatch 'Win32Window::Size size\(440, 820\);') {
             throw "Could not set the native window size in $mainPath"
           }
-
           Set-Content -Path $mainPath -Value $main -NoNewline
 
           $windowPath = "windows/runner/win32_window.cpp"
           $window = Get-Content $windowPath -Raw
-
           if ($window -notmatch 'WS_OVERLAPPEDWINDOW') {
             throw "Could not find the default window style in $windowPath"
           }
@@ -63,34 +57,34 @@ jobs:
           if ($window -notmatch $backgroundPattern) {
             throw "Could not find the native window background in $windowPath"
           }
+
           $window = [regex]::Replace(
             $window,
             $backgroundPattern,
-            '${1}CreateSolidBrush(RGB(5, 5, 10));',
+            '${1}static_cast<HBRUSH>(GetStockObject(NULL_BRUSH));',
             1
           )
-          if ($window -notmatch 'hbrBackground\s*=\s*CreateSolidBrush\(RGB\(5, 5, 10\)\);') {
-            throw "Could not set the native background to match the Flutter UI in $windowPath"
+
+          if ($window -notmatch 'hbrBackground\s*=\s*static_cast<HBRUSH>\(GetStockObject\(NULL_BRUSH\)\);') {
+            throw "Could not set a transparent native class background in $windowPath"
           }
+
           Set-Content -Path $windowPath -Value $window -NoNewline
 
           $dartPath = "lib/main.dart"
           $dart = Get-Content $dartPath -Raw
-          $minSizePattern = 'await windowManager\.setMinimumSize\(const Size\([^;]*\)\);'
-          $sizePattern = 'await windowManager\.setSize\(const Size\([^;]*\)\);'
-          if ($dart -notmatch $minSizePattern -or $dart -notmatch $sizePattern) {
-            throw "Could not find the Flutter window size settings in $dartPath"
+          $backgroundCall = 'await windowManager\.setBackgroundColor\([^;]*\);'
+          if ($dart -notmatch $backgroundCall) {
+            throw "Could not find the window background setting in $dartPath"
           }
+
           $dart = [regex]::Replace(
             $dart,
-            $minSizePattern,
-            "await windowManager.setMinimumSize(const Size($width, $height));"
+            $backgroundCall,
+            'await windowManager.setBackgroundColor(const Color(0x00000000));',
+            1
           )
-          $dart = [regex]::Replace(
-            $dart,
-            $sizePattern,
-            "await windowManager.setSize(const Size($width, $height));"
-          )
+
           Set-Content -Path $dartPath -Value $dart -NoNewline
 
       - name: Install dependencies
