@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -9,8 +10,7 @@ const _demoLilac = Color(0xFFC28AFF);
 const _demoText = Color(0xFFF2ECFA);
 const _demoMuted = Color(0xFF9A8EAD);
 
-/// Local-only demo authentication. Credentials are kept in memory and are
-/// lost when the app closes. This is not suitable for real accounts.
+/// Local-only demo authentication. Account data is lost when the app closes.
 class DemoAuthGate extends StatefulWidget {
   const DemoAuthGate({super.key, required this.appBuilder});
 
@@ -27,19 +27,24 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
   bool _authorized = false;
   bool _showRegistration = true;
 
-  Future<void> _registered(String username, String password) async {
+  void _message(String text) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    }
+  }
+
+  void _registered(String username, String password) {
     if (_username != null) {
       setState(() => _showRegistration = false);
       _message('Демо-аккаунт уже создан. Войдите в него.');
       return;
     }
-
     setState(() {
       _username = username.trim();
       _password = password;
       _showRegistration = false;
     });
-    await _askForEmail();
+    unawaited(_askForEmail());
   }
 
   Future<void> _askForEmail() async {
@@ -57,24 +62,15 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
             controller: controller,
             keyboardType: TextInputType.emailAddress,
             style: const TextStyle(color: _demoText),
-            decoration: const InputDecoration(
-              labelText: 'Электронная почта (необязательно)',
-              labelStyle: TextStyle(color: _demoMuted),
-            ),
+            decoration: const InputDecoration(labelText: 'Электронная почта (необязательно)'),
             validator: (value) {
               final text = value?.trim() ?? '';
-              if (text.isNotEmpty && !_isEmail(text)) {
-                return 'Введите корректный адрес';
-              }
-              return null;
+              return text.isEmpty || _isEmail(text) ? null : 'Введите корректный адрес';
             },
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, ''),
-            child: const Text('Пропустить'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, ''), child: const Text('Пропустить')),
           FilledButton(
             onPressed: () {
               if (formKey.currentState!.validate()) {
@@ -88,7 +84,6 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
     );
     controller.dispose();
     if (!mounted) return;
-
     setState(() {
       _email = email?.isNotEmpty == true ? email : null;
       _authorized = false;
@@ -122,16 +117,11 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
             keyboardType: TextInputType.emailAddress,
             style: const TextStyle(color: _demoText),
             decoration: const InputDecoration(labelText: 'Привязанная почта'),
-            validator: (value) => _isEmail(value?.trim() ?? '')
-                ? null
-                : 'Введите корректную почту',
+            validator: (value) => _isEmail(value?.trim() ?? '') ? null : 'Введите корректную почту',
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Отмена'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Отмена')),
           FilledButton(
             onPressed: () {
               if (formKey.currentState!.validate()) {
@@ -145,42 +135,26 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
     );
     controller.dispose();
     if (!mounted || email == null) return;
-
     if (_email == null || email.toLowerCase() != _email!.toLowerCase()) {
       _message('Аккаунт с такой привязанной почтой не найден.');
       return;
     }
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: _demoPanel,
-        title: const Text('Демо-восстановление', style: TextStyle(color: _demoText)),
-        content: Text(
-          'Логин вашего демо-аккаунта: $_username. Письмо не отправляется. '
-          'Продолжить и задать новый пароль?',
-          style: const TextStyle(color: _demoText),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Отмена'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Задать пароль'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true && mounted) await _showResetPasswordDialog();
+    final reset = await _showResetPasswordDialog();
+    if (reset != null && mounted) {
+      setState(() {
+        _password = reset;
+        _authorized = false;
+        _showRegistration = false;
+      });
+      _message('Пароль изменён. Войдите с новым паролем.');
+    }
   }
 
-  Future<void> _showResetPasswordDialog() async {
-    final passwordController = TextEditingController();
-    final confirmController = TextEditingController();
+  Future<String?> _showResetPasswordDialog() async {
+    final password = TextEditingController();
+    final confirm = TextEditingController();
     final formKey = GlobalKey<FormState>();
-    final password = await showDialog<String>(
+    final result = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: _demoPanel,
@@ -191,66 +165,44 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextFormField(
-                controller: passwordController,
+                controller: password,
                 obscureText: true,
-                style: const TextStyle(color: _demoText),
                 decoration: const InputDecoration(labelText: 'Новый пароль'),
-                validator: (value) => (value ?? '').length < 6
-                    ? 'Минимум 6 символов'
-                    : null,
+                validator: (value) => (value ?? '').length >= 6 ? null : 'Минимум 6 символов',
               ),
               TextFormField(
-                controller: confirmController,
+                controller: confirm,
                 obscureText: true,
-                style: const TextStyle(color: _demoText),
                 decoration: const InputDecoration(labelText: 'Повторите пароль'),
-                validator: (value) => value != passwordController.text
-                    ? 'Пароли не совпадают'
-                    : null,
+                validator: (value) => value == password.text ? null : 'Пароли не совпадают',
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Отмена'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Отмена')),
           FilledButton(
             onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(dialogContext, passwordController.text);
-              }
+              if (formKey.currentState!.validate()) Navigator.pop(dialogContext, password.text);
             },
             child: const Text('Сохранить'),
           ),
         ],
       ),
     );
-    passwordController.dispose();
-    confirmController.dispose();
-    if (password != null && mounted) {
-      setState(() {
-        _password = password;
-        _authorized = false;
-        _showRegistration = false;
-      });
-      _message('Пароль изменён. Войдите с новым паролем.');
-    }
+    password.dispose();
+    confirm.dispose();
+    return result;
   }
 
-  bool _isEmail(String value) =>
-      value.contains('@') && value.substring(value.indexOf('@') + 1).contains('.');
-
-  void _message(String text) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  bool _isEmail(String value) {
+    final at = value.indexOf('@');
+    return at > 0 && value.indexOf('.', at) > at + 1 && value.indexOf('.', at) < value.length - 1;
   }
 
   @override
   Widget build(BuildContext context) {
     if (_authorized) return widget.appBuilder(context);
-
     return Scaffold(
       backgroundColor: _demoBg,
       body: SafeArea(
@@ -264,9 +216,7 @@ class _DemoAuthGateState extends State<DemoAuthGate> {
                   : _LoginForm(
                       onLogin: _login,
                       onForgot: _showRecovery,
-                      onCreateAccount: () => setState(() {
-                        _showRegistration = true;
-                      }),
+                      onCreateAccount: () => setState(() => _showRegistration = true),
                     ),
             ),
           ),
@@ -285,15 +235,15 @@ class _RegistrationForm extends StatefulWidget {
 }
 
 class _RegistrationFormState extends State<_RegistrationForm> {
-  final _key = GlobalKey<FormState>();
-  final _login = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _username = TextEditingController();
   final _password = TextEditingController();
   final _repeat = TextEditingController();
   bool _obscure = true;
 
   @override
   void dispose() {
-    _login.dispose();
+    _username.dispose();
     _password.dispose();
     _repeat.dispose();
     super.dispose();
@@ -301,31 +251,21 @@ class _RegistrationFormState extends State<_RegistrationForm> {
 
   @override
   Widget build(BuildContext context) => Form(
-        key: _key,
+        key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _SpiderWebMark(size: 112),
-            const SizedBox(height: 16),
-            const Text(
-              'Создать аккаунт',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: _demoText, fontSize: 24, fontWeight: FontWeight.w600),
-            ),
+            const _SpiderVpnBrand(),
+            const SizedBox(height: 22),
+            const Text('Создать аккаунт', textAlign: TextAlign.center, style: TextStyle(color: _demoText, fontSize: 24, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            const Text(
-              'Придумайте логин и пароль',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: _demoMuted),
-            ),
+            const Text('Придумайте логин и пароль', textAlign: TextAlign.center, style: TextStyle(color: _demoMuted)),
             const SizedBox(height: 28),
             TextFormField(
-              controller: _login,
+              controller: _username,
               style: const TextStyle(color: _demoText),
               decoration: const InputDecoration(labelText: 'Логин'),
-              validator: (value) => (value?.trim().length ?? 0) < 3
-                  ? 'Логин должен содержать минимум 3 символа'
-                  : null,
+              validator: (value) => (value?.trim().length ?? 0) >= 3 ? null : 'Минимум 3 символа',
             ),
             const SizedBox(height: 14),
             TextFormField(
@@ -339,9 +279,7 @@ class _RegistrationFormState extends State<_RegistrationForm> {
                   icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
                 ),
               ),
-              validator: (value) => (value ?? '').length < 6
-                  ? 'Пароль должен содержать минимум 6 символов'
-                  : null,
+              validator: (value) => (value ?? '').length >= 6 ? null : 'Минимум 6 символов',
             ),
             const SizedBox(height: 14),
             TextFormField(
@@ -349,21 +287,16 @@ class _RegistrationFormState extends State<_RegistrationForm> {
               obscureText: _obscure,
               style: const TextStyle(color: _demoText),
               decoration: const InputDecoration(labelText: 'Повторите пароль'),
-              validator: (value) => value != _password.text
-                  ? 'Пароли не совпадают'
-                  : null,
+              validator: (value) => value == _password.text ? null : 'Пароли не совпадают',
             ),
             const SizedBox(height: 24),
             FilledButton(
               onPressed: () {
-                if (_key.currentState!.validate()) {
-                  widget.onRegister(_login.text.trim(), _password.text);
+                if (_formKey.currentState!.validate()) {
+                  widget.onRegister(_username.text.trim(), _password.text);
                 }
               },
-              child: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 13),
-                child: Text('Зарегистрироваться'),
-              ),
+              child: const Padding(padding: EdgeInsets.symmetric(vertical: 13), child: Text('Зарегистрироваться')),
             ),
           ],
         ),
@@ -372,7 +305,6 @@ class _RegistrationFormState extends State<_RegistrationForm> {
 
 class _LoginForm extends StatefulWidget {
   const _LoginForm({required this.onLogin, required this.onForgot, required this.onCreateAccount});
-
   final void Function(String username, String password) onLogin;
   final VoidCallback onForgot;
   final VoidCallback onCreateAccount;
@@ -382,38 +314,32 @@ class _LoginForm extends StatefulWidget {
 }
 
 class _LoginFormState extends State<_LoginForm> {
-  final _key = GlobalKey<FormState>();
-  final _login = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _username = TextEditingController();
   final _password = TextEditingController();
 
   @override
   void dispose() {
-    _login.dispose();
+    _username.dispose();
     _password.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => Form(
-        key: _key,
+        key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _SpiderWebMark(size: 112),
-            const SizedBox(height: 16),
-            const Text(
-              'Вход в аккаунт',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: _demoText, fontSize: 24, fontWeight: FontWeight.w600),
-            ),
+            const _SpiderVpnBrand(),
+            const SizedBox(height: 22),
+            const Text('Вход в аккаунт', textAlign: TextAlign.center, style: TextStyle(color: _demoText, fontSize: 24, fontWeight: FontWeight.w600)),
             const SizedBox(height: 28),
             TextFormField(
-              controller: _login,
+              controller: _username,
               style: const TextStyle(color: _demoText),
               decoration: const InputDecoration(labelText: 'Логин'),
-              validator: (value) => (value?.trim().isEmpty ?? true)
-                  ? 'Введите логин'
-                  : null,
+              validator: (value) => (value?.trim().isNotEmpty ?? false) ? null : 'Введите логин',
             ),
             const SizedBox(height: 14),
             TextFormField(
@@ -421,28 +347,20 @@ class _LoginFormState extends State<_LoginForm> {
               obscureText: true,
               style: const TextStyle(color: _demoText),
               decoration: const InputDecoration(labelText: 'Пароль'),
-              validator: (value) => (value?.isEmpty ?? true)
-                  ? 'Введите пароль'
-                  : null,
+              validator: (value) => (value?.isNotEmpty ?? false) ? null : 'Введите пароль',
             ),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: widget.onForgot,
-                child: const Text('Забыл логин/пароль?', style: TextStyle(color: _demoMuted, fontSize: 12)),
-              ),
+              child: TextButton(onPressed: widget.onForgot, child: const Text('Забыл логин/пароль?', style: TextStyle(color: _demoMuted, fontSize: 12))),
             ),
             const SizedBox(height: 12),
             FilledButton(
               onPressed: () {
-                if (_key.currentState!.validate()) {
-                  widget.onLogin(_login.text.trim(), _password.text);
+                if (_formKey.currentState!.validate()) {
+                  widget.onLogin(_username.text.trim(), _password.text);
                 }
               },
-              child: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 13),
-                child: Text('Войти'),
-              ),
+              child: const Padding(padding: EdgeInsets.symmetric(vertical: 13), child: Text('Войти')),
             ),
             TextButton(onPressed: widget.onCreateAccount, child: const Text('Создать аккаунт')),
           ],
@@ -450,99 +368,134 @@ class _LoginFormState extends State<_LoginForm> {
       );
 }
 
-class _SpiderWebMark extends StatelessWidget {
-  const _SpiderWebMark({required this.size});
-  final double size;
+/// Animated wordmark using a custom-drawn spider and web, inspired by the
+/// supplied reference image. No external image assets or packages required.
+class _SpiderVpnBrand extends StatefulWidget {
+  const _SpiderVpnBrand();
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: size,
-        height: size,
-        child: CustomPaint(painter: _SpiderWebPainter()),
+  State<_SpiderVpnBrand> createState() => _SpiderVpnBrandState();
+}
+
+class _SpiderVpnBrandState extends State<_SpiderVpnBrand>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shine;
+
+  @override
+  void initState() {
+    super.initState();
+    _shine = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
+  }
+
+  @override
+  void dispose() {
+    _shine.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 178,
+            height: 150,
+            child: CustomPaint(painter: _SpiderWebPainter(_shine)),
+          ),
+          const SizedBox(height: 7),
+          const Text(
+            'spider vpn',
+            style: TextStyle(
+              color: _demoText,
+              fontSize: 15,
+              letterSpacing: 3.2,
+              fontWeight: FontWeight.w300,
+            ),
+          ),
+        ],
       );
 }
 
 class _SpiderWebPainter extends CustomPainter {
+  _SpiderWebPainter(this.animation) : super(repaint: animation);
+  final Animation<double> animation;
+
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.shortestSide * .43;
-    final webPaint = Paint()
-      ..color = _demoPurple.withOpacity(.72)
+    final rect = Offset.zero & size;
+    final phase = animation.value;
+    final shimmer = LinearGradient(
+      begin: Alignment(-1 + 2 * phase, -1),
+      end: Alignment(1 - 2 * phase, 1),
+      colors: const [
+        Color(0x66FFFFFF),
+        Color(0xFFE6E8EC),
+        Color(0x553F4650),
+        Color(0xCCFFFFFF),
+      ],
+      stops: const [0, .38, .68, 1],
+    ).createShader(rect);
+    final thread = Paint()
+      ..shader = shimmer
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.15;
-    final spiderPaint = Paint()
-      ..color = _demoLilac
+      ..strokeWidth = 1.15
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    // Fan-shaped web with eight radial strands and curved cross strands.
+    const rays = 8;
+    final top = Offset(size.width * .51, size.height * .04);
+    final webWidth = size.width * .88;
+    final webHeight = size.height * .77;
+    final bottom = Offset(top.dx, top.dy + webHeight);
+    for (var i = 0; i < rays; i++) {
+      final x = size.width * (.07 + .86 * i / (rays - 1));
+      final endY = top.dy + webHeight * (i == 0 || i == rays - 1 ? .72 : 1);
+      canvas.drawLine(top, Offset(x, endY), thread);
+    }
+    for (var row = 1; row <= 5; row++) {
+      final t = row / 6;
+      final y = top.dy + webHeight * t;
+      final half = webWidth * .5 * t;
+      final path = Path()
+        ..moveTo(top.dx - half, y - 2)
+        ..quadraticBezierTo(top.dx, y + webHeight * .11, top.dx + half, y - 2);
+      canvas.drawPath(path, thread);
+    }
+
+    // Spider hangs from the lower-right web strand, like the supplied logo.
+    final spiderCenter = Offset(size.width * .79, size.height * .81);
+    final legPaint = Paint()
+      ..shader = shimmer
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round;
-    final bodyPaint = Paint()..color = _demoPurple;
-
-    const rays = 8;
-    for (var i = 0; i < rays; i++) {
-      final angle = -math.pi / 2 + math.pi * 2 * i / rays;
-      canvas.drawLine(
-        center,
-        Offset(center.dx + math.cos(angle) * radius, center.dy + math.sin(angle) * radius),
-        webPaint,
-      );
-    }
-    for (var ring = 1; ring <= 4; ring++) {
-      final ringRadius = radius * ring / 4;
-      final path = Path();
-      for (var i = 0; i <= rays; i++) {
-        final angle = -math.pi / 2 + math.pi * 2 * i / rays;
-        final point = Offset(
-          center.dx + math.cos(angle) * ringRadius,
-          center.dy + math.sin(angle) * ringRadius,
-        );
-        if (i == 0) {
-          path.moveTo(point.dx, point.dy);
-        } else {
-          final previousAngle = -math.pi / 2 + math.pi * 2 * (i - 1) / rays;
-          final middleAngle = (previousAngle + angle) / 2;
-          final control = Offset(
-            center.dx + math.cos(middleAngle) * ringRadius * .78,
-            center.dy + math.sin(middleAngle) * ringRadius * .78,
-          );
-          path.quadraticBezierTo(control.dx, control.dy, point.dx, point.dy);
-        }
-      }
-      canvas.drawPath(path, webPaint);
-    }
-
+    final bodyPaint = Paint()
+      ..shader = shimmer
+      ..style = PaintingStyle.fill;
+    canvas.drawLine(
+      Offset(size.width * .93, top.dy + webHeight * .72),
+      Offset(size.width * .93, spiderCenter.dy - 10),
+      thread,
+    );
     for (var i = 0; i < 4; i++) {
-      final y = (i - 1.5) * size.width * .045;
+      final y = spiderCenter.dy + (i - 1.5) * 4;
       for (final side in [-1.0, 1.0]) {
         final leg = Path()
-          ..moveTo(center.dx + side * size.width * .025, center.dy + y)
-          ..quadraticBezierTo(
-            center.dx + side * size.width * .09,
-            center.dy + y - size.width * .035,
-            center.dx + side * size.width * .14,
-            center.dy + y - size.width * .09,
-          )
-          ..moveTo(center.dx + side * size.width * .025, center.dy + y)
-          ..quadraticBezierTo(
-            center.dx + side * size.width * .09,
-            center.dy + y + size.width * .035,
-            center.dx + side * size.width * .14,
-            center.dy + y + size.width * .09,
-          );
-        canvas.drawPath(leg, spiderPaint);
+          ..moveTo(spiderCenter.dx + side * 3, y)
+          ..quadraticBezierTo(spiderCenter.dx + side * 11, y - 8, spiderCenter.dx + side * 16, y - 2)
+          ..quadraticBezierTo(spiderCenter.dx + side * 19, y + 3, spiderCenter.dx + side * 16, y + 8);
+        canvas.drawPath(leg, legPaint);
       }
     }
     canvas.drawOval(
-      Rect.fromCenter(center: center, width: size.width * .13, height: size.width * .23),
+      Rect.fromCenter(center: spiderCenter, width: 12, height: 19),
       bodyPaint,
     );
-    canvas.drawCircle(
-      Offset(center.dx, center.dy - size.width * .14),
-      size.width * .055,
-      Paint()..color = _demoLilac,
-    );
+    canvas.drawCircle(Offset(spiderCenter.dx, spiderCenter.dy - 10), 5, bodyPaint);
   }
 
   @override
-  bool shouldRepaint(covariant _SpiderWebPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _SpiderWebPainter oldDelegate) =>
+      oldDelegate.animation != animation;
 }
