@@ -24,12 +24,12 @@ jobs:
         working-directory: flutter_app
         run: flutter create --platforms=windows .
 
-      - name: Configure frameless window size and black background
+      - name: Match native window background and fixed size to Flutter UI
         working-directory: flutter_app
         shell: pwsh
         run: |
-          $width = 424
-          $height = 812
+          $width = 430
+          $height = 820
 
           $mainPath = "windows/runner/main.cpp"
           $main = Get-Content $mainPath -Raw
@@ -57,32 +57,30 @@ jobs:
           if ($window -notmatch 'WS_OVERLAPPEDWINDOW') {
             throw "Could not find the default window style in $windowPath"
           }
-
           $window = $window.Replace('WS_OVERLAPPEDWINDOW', 'WS_POPUP')
 
           $backgroundPattern = '(?m)(\w+\.hbrBackground\s*=\s*)[^;]*;'
           if ($window -notmatch $backgroundPattern) {
             throw "Could not find the native window background in $windowPath"
           }
-
           $window = [regex]::Replace(
             $window,
             $backgroundPattern,
-            '${1}CreateSolidBrush(RGB(0, 0, 0));',
+            '${1}CreateSolidBrush(RGB(5, 5, 10));',
             1
           )
-
+          if ($window -notmatch 'hbrBackground\s*=\s*CreateSolidBrush\(RGB\(5, 5, 10\)\);') {
+            throw "Could not set the native background to match the Flutter UI in $windowPath"
+          }
           Set-Content -Path $windowPath -Value $window -NoNewline
 
           $dartPath = "lib/main.dart"
           $dart = Get-Content $dartPath -Raw
           $minSizePattern = 'await windowManager\.setMinimumSize\(const Size\([^;]*\)\);'
           $sizePattern = 'await windowManager\.setSize\(const Size\([^;]*\)\);'
-
           if ($dart -notmatch $minSizePattern -or $dart -notmatch $sizePattern) {
             throw "Could not find the Flutter window size settings in $dartPath"
           }
-
           $dart = [regex]::Replace(
             $dart,
             $minSizePattern,
@@ -93,7 +91,6 @@ jobs:
             $sizePattern,
             "await windowManager.setSize(const Size($width, $height));"
           )
-
           Set-Content -Path $dartPath -Value $dart -NoNewline
 
       - name: Install dependencies
